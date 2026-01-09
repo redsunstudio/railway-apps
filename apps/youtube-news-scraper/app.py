@@ -62,7 +62,9 @@ def health():
     return jsonify({
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat(),
-        'scheduler_running': scheduler is not None
+        'scheduler_running': scheduler is not None,
+        'dashboard_enabled': True,
+        'version': '1.1.0'
     }), 200
 
 
