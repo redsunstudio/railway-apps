@@ -30,13 +30,22 @@ Automated daily news scraper that monitors YouTube-related news sources and send
 
 ### 1. Set Up Gmail App Password
 
-To send emails via Gmail, you need an App Password:
+**Quick Setup (Recommended):**
+```bash
+cd /Users/john/railway-apps/apps/youtube-news-scraper
+./setup_gmail.sh
+```
 
-1. Go to your Google Account settings
-2. Navigate to Security → 2-Step Verification (enable if not already)
-3. Go to Security → App passwords
-4. Generate a new app password for "Mail"
-5. Copy the 16-character password
+The script will guide you through getting your Gmail App Password and test the configuration.
+
+**Manual Setup:**
+See [GMAIL_SETUP.md](GMAIL_SETUP.md) for detailed step-by-step instructions.
+
+**Quick Summary:**
+1. Enable 2-Step Verification in your Google Account
+2. Go to https://myaccount.google.com/apppasswords
+3. Generate app password for "Mail"
+4. Copy the 16-character password (remove spaces)
 
 ### 2. Configure Environment Variables
 
