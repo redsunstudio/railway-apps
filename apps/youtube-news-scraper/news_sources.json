@@ -62,6 +62,20 @@
       "type": "html",
       "keywords": ["youtube", "creator", "feature", "platform"],
       "enabled": true
+    },
+    {
+      "name": "YouTube Insiders Channel",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqVDpXKJw9vXEW6q4KaCy3w",
+      "type": "rss",
+      "keywords": ["youtube", "insider", "feature", "announcement", "update"],
+      "enabled": true
+    },
+    {
+      "name": "YouTube Creators Channel",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCkRfGP3J7uWzbP-2HAZWW1Q",
+      "type": "rss",
+      "keywords": ["creator", "tutorial", "tips", "announcement", "feature"],
+      "enabled": true
     }
   ],
   "scraping_settings": {
