@@ -1,0 +1,20 @@
+{
+  "name": "railway-apps",
+  "version": "1.0.0",
+  "description": "Multi-app hosting infrastructure for Railway deployment",
+  "private": true,
+  "scripts": {
+    "create-app": "cd scripts && ./create-app.sh",
+    "deploy-all": "cd scripts && ./deploy-all.sh",
+    "test-starter": "cd apps/starter-app && npm install && npm start"
+  },
+  "keywords": [
+    "railway",
+    "deployment",
+    "cloud",
+    "hosting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {}
+}
