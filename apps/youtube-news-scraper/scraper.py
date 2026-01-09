@@ -100,7 +100,18 @@ class YouTubeNewsScraper:
                     return False
 
             # Check if within last 24 hours
+            # Make both timezone-aware or both timezone-naive for comparison
             cutoff_date = datetime.now() - timedelta(days=max_days)
+
+            # If article_date has timezone info, make cutoff_date aware too
+            if article_date.tzinfo is not None and article_date.tzinfo.utcoffset(article_date) is not None:
+                # Article date is timezone-aware, make cutoff timezone-aware (UTC)
+                from datetime import timezone
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=max_days)
+            else:
+                # Article date is naive, make sure cutoff is naive too
+                cutoff_date = datetime.now() - timedelta(days=max_days)
+
             is_recent = article_date >= cutoff_date
 
             if not is_recent:
