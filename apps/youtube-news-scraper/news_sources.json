@@ -68,6 +68,10 @@
     "max_articles_per_source": 5,
     "article_age_days": 1,
     "request_timeout": 10,
-    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+    "min_delay_seconds": 2,
+    "max_delay_seconds": 5,
+    "max_retries": 3,
+    "retry_delay_seconds": 5
   }
 }

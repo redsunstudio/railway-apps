@@ -10,6 +10,9 @@ Automated daily news scraper that monitors YouTube-related news sources and send
 - Easy to add new sources via JSON configuration
 - Manual trigger via API endpoints
 - Runs 24/7 on Railway
+- Built-in rate limiting and retry logic to avoid being blocked
+- Randomized delays between requests to appear more human-like
+- Automatic handling of 429 (Too Many Requests) responses
 
 ## News Sources Monitored
 
@@ -164,6 +167,10 @@ Edit `news_sources.json`:
 - `max_articles_per_source` - Max articles per source (default: 5)
 - `article_age_days` - Only include articles from last N days (default: 1)
 - `request_timeout` - Timeout for web requests in seconds (default: 10)
+- `min_delay_seconds` - Minimum delay between requests to same domain (default: 2)
+- `max_delay_seconds` - Maximum delay between requests to same domain (default: 5)
+- `max_retries` - Number of retry attempts for failed requests (default: 3)
+- `retry_delay_seconds` - Delay before retrying failed requests (default: 5)
 
 ## Troubleshooting
 

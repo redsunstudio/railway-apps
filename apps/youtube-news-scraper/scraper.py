@@ -4,7 +4,10 @@ import feedparser
 from datetime import datetime, timedelta
 import json
 import os
+import time
+import random
 from typing import List, Dict
+from collections import defaultdict
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +40,14 @@ class YouTubeNewsScraper:
         }
         self.timeout = self.config['scraping_settings']['request_timeout']
 
+        # Rate limiting
+        self.request_count = defaultdict(int)
+        self.last_request_time = defaultdict(float)
+        self.min_delay = self.config['scraping_settings'].get('min_delay_seconds', 2)
+        self.max_delay = self.config['scraping_settings'].get('max_delay_seconds', 5)
+        self.max_retries = self.config['scraping_settings'].get('max_retries', 3)
+        self.retry_delay = self.config['scraping_settings'].get('retry_delay_seconds', 5)
+
     def _load_config(self, config_path: str) -> dict:
         """Load configuration from JSON file"""
         with open(config_path, 'r') as f:
@@ -62,14 +73,70 @@ class YouTubeNewsScraper:
             logger.warning(f"Date parsing error: {e}")
             return True
 
-    def _fetch_page(self, url: str) -> str:
-        """Fetch page content"""
+    def _get_domain(self, url: str) -> str:
+        """Extract domain from URL for rate limiting"""
+        from urllib.parse import urlparse
+        return urlparse(url).netloc
+
+    def _rate_limit_delay(self, domain: str):
+        """Apply rate limiting delay based on domain"""
+        current_time = time.time()
+        last_request = self.last_request_time.get(domain, 0)
+        time_since_last = current_time - last_request
+
+        # Calculate required delay with randomization to appear more human-like
+        required_delay = random.uniform(self.min_delay, self.max_delay)
+
+        if time_since_last < required_delay:
+            sleep_time = required_delay - time_since_last
+            logger.debug(f"Rate limiting: sleeping {sleep_time:.2f}s for {domain}")
+            time.sleep(sleep_time)
+
+        self.last_request_time[domain] = time.time()
+        self.request_count[domain] += 1
+
+    def _fetch_page(self, url: str, retry_count: int = 0) -> str:
+        """Fetch page content with rate limiting and retry logic"""
+        domain = self._get_domain(url)
+
         try:
+            # Apply rate limiting
+            self._rate_limit_delay(domain)
+
+            logger.debug(f"Fetching {url} (attempt {retry_count + 1}/{self.max_retries + 1})")
             response = requests.get(url, headers=self.headers, timeout=self.timeout)
+
+            # Handle rate limiting responses
+            if response.status_code == 429:  # Too Many Requests
+                if retry_count < self.max_retries:
+                    retry_after = int(response.headers.get('Retry-After', self.retry_delay))
+                    logger.warning(f"Rate limited by {domain}. Retrying after {retry_after}s")
+                    time.sleep(retry_after)
+                    return self._fetch_page(url, retry_count + 1)
+                else:
+                    logger.error(f"Max retries exceeded for {url}")
+                    return None
+
             response.raise_for_status()
+            logger.info(f"Successfully fetched {domain} ({len(response.text)} bytes)")
             return response.text
-        except Exception as e:
+
+        except requests.exceptions.Timeout:
+            logger.error(f"Timeout fetching {url}")
+            if retry_count < self.max_retries:
+                time.sleep(self.retry_delay)
+                return self._fetch_page(url, retry_count + 1)
+            return None
+
+        except requests.exceptions.RequestException as e:
             logger.error(f"Error fetching {url}: {e}")
+            if retry_count < self.max_retries:
+                time.sleep(self.retry_delay)
+                return self._fetch_page(url, retry_count + 1)
+            return None
+
+        except Exception as e:
+            logger.error(f"Unexpected error fetching {url}: {e}")
             return None
 
     def _extract_articles_generic(self, html: str, source_name: str, keywords: List[str]) -> List[NewsArticle]:
@@ -193,21 +260,30 @@ class YouTubeNewsScraper:
         return recent_articles[:max_articles]
 
     def scrape_all(self) -> List[NewsArticle]:
-        """Scrape all enabled sources"""
+        """Scrape all enabled sources with rate limiting"""
         all_articles = []
+        enabled_sources = [s for s in self.config['sources'] if s.get('enabled', True)]
 
-        for source in self.config['sources']:
+        logger.info(f"Starting scrape of {len(enabled_sources)} sources")
+        start_time = time.time()
+
+        for idx, source in enumerate(enabled_sources, 1):
             try:
+                logger.info(f"[{idx}/{len(enabled_sources)}] Scraping {source['name']}...")
                 articles = self.scrape_source(source)
                 all_articles.extend(articles)
-                logger.info(f"Found {len(articles)} articles from {source['name']}")
+                logger.info(f"✓ Found {len(articles)} articles from {source['name']}")
             except Exception as e:
-                logger.error(f"Error scraping {source['name']}: {e}")
+                logger.error(f"✗ Error scraping {source['name']}: {e}")
 
         # Remove duplicates based on title similarity
         unique_articles = self._deduplicate_articles(all_articles)
 
-        logger.info(f"Total unique articles found: {len(unique_articles)}")
+        elapsed = time.time() - start_time
+        logger.info(f"Scraping complete in {elapsed:.1f}s")
+        logger.info(f"Total: {len(all_articles)} articles, {len(unique_articles)} unique")
+        logger.info(f"Request stats: {dict(self.request_count)}")
+
         return unique_articles
 
     def _deduplicate_articles(self, articles: List[NewsArticle]) -> List[NewsArticle]:
