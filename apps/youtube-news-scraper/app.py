@@ -1,10 +1,11 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 from datetime import datetime
 import threading
 import logging
+import json
 
 from scheduler import NewsScheduler
 from scraper import YouTubeNewsScraper
@@ -65,20 +66,32 @@ def health():
     }), 200
 
 
-# Root endpoint
+# Root endpoint - serve dashboard
 @app.route('/', methods=['GET'])
 def root():
-    return jsonify({
-        'message': 'YouTube News Scraper API',
-        'version': '1.0.0',
-        'endpoints': {
-            'health': '/health',
-            'test_scrape': '/api/test-scrape',
-            'test_email': '/api/test-email',
-            'manual_run': '/api/run-now',
-            'sources': '/api/sources'
-        }
-    }), 200
+    # Check if request accepts HTML (browser) or JSON (API client)
+    if 'text/html' in request.headers.get('Accept', ''):
+        return render_template('dashboard.html')
+    else:
+        return jsonify({
+            'message': 'YouTube News Scraper API',
+            'version': '1.0.0',
+            'endpoints': {
+                'dashboard': '/',
+                'health': '/health',
+                'test_scrape': '/api/test-scrape',
+                'test_email': '/api/test-email',
+                'manual_run': '/api/run-now',
+                'sources': '/api/sources',
+                'update_sources': '/api/update-sources'
+            }
+        }), 200
+
+
+# Dashboard endpoint
+@app.route('/dashboard', methods=['GET'])
+def dashboard():
+    return render_template('dashboard.html')
 
 
 # Test scraping endpoint
@@ -181,6 +194,47 @@ def get_sources():
         }), 200
     except Exception as e:
         logger.error(f"Error getting sources: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# Update sources endpoint
+@app.route('/api/update-sources', methods=['POST'])
+def update_sources():
+    """Update news sources configuration"""
+    try:
+        data = request.get_json()
+        new_sources = data.get('sources', [])
+
+        if not new_sources:
+            return jsonify({
+                'success': False,
+                'error': 'No sources provided'
+            }), 400
+
+        # Read current config
+        config_path = os.path.join(os.path.dirname(__file__), 'news_sources.json')
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+
+        # Update sources
+        config['sources'] = new_sources
+
+        # Write back to file
+        with open(config_path, 'w') as f:
+            json.dump(config, f, indent=2)
+
+        logger.info("Sources configuration updated successfully")
+
+        return jsonify({
+            'success': True,
+            'message': 'Sources updated successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating sources: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
