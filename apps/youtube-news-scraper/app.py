@@ -10,7 +10,26 @@ from scheduler import NewsScheduler
 from scraper import YouTubeNewsScraper
 from email_sender import EmailSender
 
+# Try to import Gmail API sender (optional)
+try:
+    from gmail_api_sender import GmailAPISender
+    GMAIL_API_AVAILABLE = True
+except ImportError:
+    GMAIL_API_AVAILABLE = False
+    logger.warning("Gmail API not available, falling back to SMTP")
+
 load_dotenv()
+
+# Determine which email sender to use
+def get_email_sender():
+    """Get appropriate email sender based on available credentials"""
+    # Check if Gmail API credentials are available
+    if GMAIL_API_AVAILABLE and os.getenv('GMAIL_CREDENTIALS_JSON') and os.getenv('GMAIL_TOKEN_JSON'):
+        logger.info("Using Gmail API for email sending")
+        return GmailAPISender()
+    else:
+        logger.info("Using SMTP for email sending")
+        return EmailSender()
 
 logging.basicConfig(
     level=logging.INFO,
@@ -104,7 +123,7 @@ def test_email():
                 }
             ]
 
-        email_sender = EmailSender()
+        email_sender = get_email_sender()
         success = email_sender.send_digest(articles)
 
         return jsonify({
@@ -129,7 +148,7 @@ def run_now():
         articles = scraper.scrape_all()
         articles_dict = [article.to_dict() for article in articles]
 
-        email_sender = EmailSender()
+        email_sender = get_email_sender()
         success = email_sender.send_digest(articles_dict)
 
         return jsonify({
