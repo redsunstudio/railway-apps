@@ -75,7 +75,7 @@ def root():
     else:
         return jsonify({
             'message': 'YouTube News Scraper API',
-            'version': '1.0.0',
+            'version': '1.1.0',
             'endpoints': {
                 'dashboard': '/',
                 'health': '/health',
