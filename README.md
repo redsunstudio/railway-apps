@@ -1,6 +1,14 @@
 # Railway Apps - Multi-App Hosting Infrastructure
 
+> **⚠️ IMPORTANT FOR CLAUDE CODE:** All new apps/automations MUST be created in `/Users/john/railway-apps/apps/` using the templates in `templates/`. Always push to GitHub after changes - Railway auto-deploys.
+
 This directory contains all your Railway-hosted applications that run 24/7 in the cloud.
+
+**Quick Reference:**
+- **GitHub:** https://github.com/redsunstudio/railway-apps
+- **Live URL:** https://railway-apps-production.up.railway.app
+- **All apps go in:** `apps/` directory
+- **Use templates from:** `templates/` directory
 
 ## Quick Start Guide
 
