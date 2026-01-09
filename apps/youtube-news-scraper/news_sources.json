@@ -1,0 +1,73 @@
+{
+  "sources": [
+    {
+      "name": "YouTube Official Blog",
+      "url": "https://blog.youtube/",
+      "type": "html",
+      "keywords": ["feature", "announcement", "update", "creator", "studio", "new"],
+      "enabled": true
+    },
+    {
+      "name": "Android Authority - YouTube APK Teardowns",
+      "url": "https://www.androidauthority.com/?s=youtube+apk+teardown",
+      "type": "html",
+      "keywords": ["youtube", "apk", "teardown", "feature", "test"],
+      "enabled": true
+    },
+    {
+      "name": "9to5Google - YouTube Teardowns",
+      "url": "https://9to5google.com/?s=youtube+apk+teardown",
+      "type": "html",
+      "keywords": ["youtube", "apk", "teardown", "google"],
+      "enabled": true
+    },
+    {
+      "name": "Android Police - YouTube Coverage",
+      "url": "https://www.androidpolice.com/?s=youtube",
+      "type": "html",
+      "keywords": ["youtube", "apk", "feature", "update"],
+      "enabled": true
+    },
+    {
+      "name": "XDA - APK Teardown (YouTube)",
+      "url": "https://www.xda-developers.com/?s=youtube+apk+teardown",
+      "type": "html",
+      "keywords": ["youtube", "apk", "teardown"],
+      "enabled": true
+    },
+    {
+      "name": "TestingCatalog - YouTube Experiments",
+      "url": "https://www.testingcatalog.com/category/youtube/",
+      "type": "html",
+      "keywords": ["youtube", "test", "experiment", "beta"],
+      "enabled": true
+    },
+    {
+      "name": "TechCrunch - YouTube News",
+      "url": "https://techcrunch.com/tag/youtube/",
+      "type": "html",
+      "keywords": ["youtube", "feature", "creator", "update"],
+      "enabled": true
+    },
+    {
+      "name": "The Verge - YouTube Coverage",
+      "url": "https://www.theverge.com/youtube",
+      "type": "html",
+      "keywords": ["youtube", "feature", "update", "creator"],
+      "enabled": true
+    },
+    {
+      "name": "Social Media Today - YouTube",
+      "url": "https://www.socialmediatoday.com/topic/youtube/",
+      "type": "html",
+      "keywords": ["youtube", "creator", "feature", "platform"],
+      "enabled": true
+    }
+  ],
+  "scraping_settings": {
+    "max_articles_per_source": 5,
+    "article_age_days": 1,
+    "request_timeout": 10,
+    "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+  }
+}
