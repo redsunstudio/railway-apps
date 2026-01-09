@@ -199,15 +199,40 @@ class EmailSender:
             message.attach(part1)
             message.attach(part2)
 
-            # Send email
+            # Send email - try SSL first (port 465), then fallback to TLS (port 587)
             logger.info(f"Connecting to {self.smtp_server}:{self.smtp_port}")
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.sender_email, self.sender_password)
-                server.send_message(message)
 
-            logger.info(f"Email sent successfully to {self.recipient_email}")
-            return True
+            try:
+                # Try SSL connection (port 465) first - works better on Railway
+                if self.smtp_port == 465:
+                    with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port) as server:
+                        server.login(self.sender_email, self.sender_password)
+                        server.send_message(message)
+                else:
+                    # Use TLS connection (port 587)
+                    with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                        server.starttls()
+                        server.login(self.sender_email, self.sender_password)
+                        server.send_message(message)
+
+                logger.info(f"Email sent successfully to {self.recipient_email}")
+                return True
+
+            except Exception as smtp_error:
+                # If primary method fails and we're on 587, try 465
+                if self.smtp_port == 587:
+                    logger.warning(f"Port 587 failed: {smtp_error}. Trying port 465 (SSL)...")
+                    try:
+                        with smtplib.SMTP_SSL(self.smtp_server, 465) as server:
+                            server.login(self.sender_email, self.sender_password)
+                            server.send_message(message)
+                        logger.info(f"Email sent successfully via port 465 to {self.recipient_email}")
+                        return True
+                    except Exception as ssl_error:
+                        logger.error(f"Port 465 also failed: {ssl_error}")
+                        raise
+                else:
+                    raise
 
         except Exception as e:
             logger.error(f"Failed to send email: {e}")
