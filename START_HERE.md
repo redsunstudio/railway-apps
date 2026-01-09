@@ -11,12 +11,19 @@
 
 **Almost there!** Just 3 quick steps and your apps will be running 24/7 in the cloud.
 
-## Your 3 Options (Pick One)
+## 🎯 Choose Your Guide
 
-### 🏃 Option 1: Quick Start (5 minutes)
-**Best for: Getting your first app live ASAP**
+### 📝 Simple Guide (RECOMMENDED for non-technical users)
+**No tech skills needed - just follow simple steps with copy & paste**
 
-Open [QUICK_START.md](QUICK_START.md) and follow the steps. You'll have an app running in the cloud in 5 minutes.
+👉 **Open [SIMPLE_GUIDE.md](SIMPLE_GUIDE.md)** for step-by-step instructions in plain English
+
+Or use the quick **[CHECKLIST.md](CHECKLIST.md)** to track your progress
+
+---
+
+### 🏃 Quick Start (For technical users)
+Open [QUICK_START.md](QUICK_START.md) for a faster guide with commands.
 
 ### 📚 Option 2: Full Documentation (15 minutes)
 **Best for: Understanding everything before you start**
