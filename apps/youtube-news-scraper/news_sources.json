@@ -37,7 +37,7 @@
     },
     {
       "name": "TestingCatalog - YouTube Experiments",
-      "url": "https://www.testingcatalog.com/category/youtube/",
+      "url": "https://www.testingcatalog.com/",
       "type": "html",
       "keywords": ["youtube", "test", "experiment", "beta"],
       "enabled": true
@@ -58,7 +58,7 @@
     },
     {
       "name": "Social Media Today - YouTube",
-      "url": "https://www.socialmediatoday.com/topic/youtube/",
+      "url": "https://www.socialmediatoday.com/",
       "type": "html",
       "keywords": ["youtube", "creator", "feature", "platform"],
       "enabled": true
