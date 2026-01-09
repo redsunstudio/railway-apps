@@ -54,24 +54,63 @@ class YouTubeNewsScraper:
             return json.load(f)
 
     def _is_recent(self, date_str: str, max_days: int = 1) -> bool:
-        """Check if article is within the max_days threshold"""
+        """Check if article is within the max_days threshold (strict 24 hours)"""
         try:
             if not date_str:
-                return True  # Include if no date available
+                # No date = assume old, exclude it
+                logger.debug(f"No date provided, excluding article")
+                return False
+
+            # Normalize date string
+            date_str = date_str.strip()
 
             # Try parsing various date formats
-            for fmt in ['%Y-%m-%d', '%Y-%m-%dT%H:%M:%S', '%a, %d %b %Y %H:%M:%S %Z']:
+            date_formats = [
+                '%Y-%m-%d',
+                '%Y-%m-%dT%H:%M:%S',
+                '%Y-%m-%dT%H:%M:%SZ',
+                '%Y-%m-%dT%H:%M:%S.%fZ',
+                '%a, %d %b %Y %H:%M:%S %Z',
+                '%a, %d %b %Y %H:%M:%S %z',
+                '%B %d, %Y',
+                '%b %d, %Y',
+                '%d %B %Y',
+                '%d %b %Y',
+                '%Y/%m/%d',
+                '%m/%d/%Y',
+                '%d-%m-%Y',
+            ]
+
+            article_date = None
+            for fmt in date_formats:
                 try:
                     article_date = datetime.strptime(date_str, fmt)
-                    cutoff_date = datetime.now() - timedelta(days=max_days)
-                    return article_date >= cutoff_date
+                    break
                 except ValueError:
                     continue
 
-            return True  # Include if date parsing fails
+            # If still couldn't parse, try dateutil as fallback
+            if not article_date:
+                try:
+                    from dateutil import parser
+                    article_date = parser.parse(date_str)
+                except:
+                    # Can't parse date = exclude it to be safe
+                    logger.debug(f"Could not parse date '{date_str}', excluding article")
+                    return False
+
+            # Check if within last 24 hours
+            cutoff_date = datetime.now() - timedelta(days=max_days)
+            is_recent = article_date >= cutoff_date
+
+            if not is_recent:
+                logger.debug(f"Article date {article_date} is older than {cutoff_date}, excluding")
+
+            return is_recent
+
         except Exception as e:
-            logger.warning(f"Date parsing error: {e}")
-            return True
+            logger.warning(f"Date parsing error for '{date_str}': {e}")
+            return False  # Exclude if error
 
     def _get_domain(self, url: str) -> str:
         """Extract domain from URL for rate limiting"""
@@ -174,9 +213,30 @@ class YouTubeNewsScraper:
                                     if url.startswith('/'):
                                         url = source_name + url
 
-                                    # Try to find date
-                                    date_elem = element.find(['time', 'span'], class_=lambda x: x and ('date' in x or 'time' in x))
-                                    published_date = date_elem.get_text(strip=True) if date_elem else None
+                                    # Try to find date - multiple strategies
+                                    published_date = None
+
+                                    # Strategy 1: Look for <time> tag with datetime attribute
+                                    time_elem = element.find('time')
+                                    if time_elem and time_elem.get('datetime'):
+                                        published_date = time_elem.get('datetime')
+                                    elif time_elem:
+                                        published_date = time_elem.get_text(strip=True)
+
+                                    # Strategy 2: Look for date/time in class names
+                                    if not published_date:
+                                        date_elem = element.find(['span', 'div'], class_=lambda x: x and ('date' in x.lower() or 'time' in x.lower()))
+                                        if date_elem:
+                                            published_date = date_elem.get_text(strip=True)
+
+                                    # Strategy 3: Look for common date patterns in text
+                                    if not published_date:
+                                        import re
+                                        text = element.get_text()
+                                        # Match patterns like "Jan 9, 2026" or "January 9, 2026"
+                                        date_match = re.search(r'(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]* \d{1,2},? \d{4}', text)
+                                        if date_match:
+                                            published_date = date_match.group(0)
 
                                     # Try to find summary
                                     summary_elem = element.find(['p', 'div'], class_=lambda x: x and ('excerpt' in x or 'summary' in x))
