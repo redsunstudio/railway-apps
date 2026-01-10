@@ -84,7 +84,7 @@ class EmailSender:
 
     def send_weekly_summary(self, subject, html_body, text_body):
         """
-        Send weekly summary email to all recipients
+        Send weekly summary email to all recipients using CC
 
         Args:
             subject: Email subject line
@@ -92,30 +92,22 @@ class EmailSender:
             text_body: Plain text fallback
 
         Returns:
-            bool: True if sent successfully to all recipients
+            bool: True if sent successfully
         """
-        try:
-            success_count = 0
-
-            for recipient in self.recipient_emails:
-                if self._send_to_recipient(recipient, subject, html_body, text_body):
-                    success_count += 1
-
-            logger.info(f"✅ Email sent successfully to {success_count}/{len(self.recipient_emails)} recipients")
-            return success_count == len(self.recipient_emails)
-
-        except Exception as e:
-            logger.error(f"Failed to send emails: {e}")
-            return False
-
-    def _send_to_recipient(self, recipient, subject, html_body, text_body):
-        """Send email to a single recipient"""
         try:
             # Create message
             message = MIMEMultipart('alternative')
             message['Subject'] = subject
             message['From'] = self.sender_email
-            message['To'] = recipient
+
+            # First recipient is To, rest are CC
+            message['To'] = self.recipient_emails[0]
+            if len(self.recipient_emails) > 1:
+                cc_recipients = ', '.join(self.recipient_emails[1:])
+                message['Cc'] = cc_recipients
+                logger.info(f"Sending to: {self.recipient_emails[0]}, CC: {cc_recipients}")
+            else:
+                logger.info(f"Sending to: {self.recipient_emails[0]}")
 
             # Attach parts
             part1 = MIMEText(text_body, 'plain')
@@ -127,20 +119,20 @@ class EmailSender:
             raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
 
             # Send via Gmail API
-            logger.info(f"Sending email via Gmail API to {recipient}")
+            logger.info(f"Sending email via Gmail API")
             self.service.users().messages().send(
                 userId='me',
                 body={'raw': raw_message}
             ).execute()
 
-            logger.info(f"✅ Email sent successfully to {recipient}")
+            logger.info(f"✅ Email sent successfully to all recipients")
             return True
 
         except HttpError as error:
-            logger.error(f"Gmail API error for {recipient}: {error}")
+            logger.error(f"Gmail API error: {error}")
             return False
         except Exception as e:
-            logger.error(f"Failed to send email to {recipient}: {e}")
+            logger.error(f"Failed to send email: {e}")
             return False
 
 
