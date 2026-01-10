@@ -6,6 +6,13 @@ import os
 from scraper import YouTubeNewsScraper
 from email_sender import EmailSender
 
+# Try to import Gmail API sender
+try:
+    from gmail_api_sender import GmailAPISender
+    GMAIL_API_AVAILABLE = True
+except ImportError:
+    GMAIL_API_AVAILABLE = False
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -13,10 +20,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def get_email_sender():
+    """Get appropriate email sender based on available credentials"""
+    if GMAIL_API_AVAILABLE and os.getenv('GMAIL_CREDENTIALS_JSON') and os.getenv('GMAIL_TOKEN_JSON'):
+        logger.info("Using Gmail API for email sending")
+        return GmailAPISender()
+    else:
+        logger.info("Using SMTP for email sending")
+        return EmailSender()
+
+
 class NewsScheduler:
     def __init__(self):
         self.scraper = YouTubeNewsScraper()
-        self.email_sender = EmailSender()
+        self.email_sender = get_email_sender()
         self.schedule_time = os.getenv('SCHEDULE_TIME', '03:00')  # Default 3 AM UTC (7 AM UAE)
 
     def run_daily_scrape(self):
