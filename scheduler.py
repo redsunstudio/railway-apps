@@ -17,7 +17,7 @@ class NewsScheduler:
     def __init__(self):
         self.scraper = YouTubeNewsScraper()
         self.email_sender = EmailSender()
-        self.schedule_time = os.getenv('SCHEDULE_TIME', '07:00')  # Default 7 AM
+        self.schedule_time = os.getenv('SCHEDULE_TIME', '03:00')  # Default 3 AM UTC (7 AM UAE)
 
     def run_daily_scrape(self):
         """Execute daily scraping and email sending"""

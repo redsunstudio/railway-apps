@@ -56,6 +56,12 @@ def start_scheduler_in_background():
         logger.error(f"Error starting scheduler: {e}")
 
 
+# Start scheduler immediately when module loads (for Gunicorn)
+scheduler_thread = threading.Thread(target=start_scheduler_in_background, daemon=True)
+scheduler_thread.start()
+logger.info("🚀 Started background scheduler thread")
+
+
 # Health check endpoint
 @app.route('/health', methods=['GET'])
 def health():
