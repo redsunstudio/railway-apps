@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Railway Apps Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 2rem;
+            color: #fff;
+        }
+
+        .apps-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .app-card {
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 1.5rem;
+            transition: all 0.2s;
+        }
+
+        .app-card:hover {
+            border-color: #666;
+            transform: translateY(-2px);
+        }
+
+        .app-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .app-name {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.online {
+            background: #22c55e;
+        }
+
+        .status-dot.offline {
+            background: #ef4444;
+            animation: none;
+        }
+
+        .status-dot.loading {
+            background: #fbbf24;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .app-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #333;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #fff;
+        }
+
+        .app-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.5rem 1rem;
+            border: 1px solid #333;
+            background: #2a2a2a;
+            color: #fff;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background: #3a3a3a;
+            border-color: #666;
+        }
+
+        .btn-primary {
+            background: #3b82f6;
+            border-color: #3b82f6;
+        }
+
+        .btn-primary:hover {
+            background: #2563eb;
+            border-color: #2563eb;
+        }
+
+        .last-updated {
+            text-align: center;
+            margin-top: 2rem;
+            color: #666;
+            font-size: 0.875rem;
+        }
+
+        .add-app {
+            background: #1a1a1a;
+            border: 2px dashed #333;
+            border-radius: 8px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .add-app:hover {
+            border-color: #666;
+        }
+
+        .add-app-btn {
+            font-size: 2rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Railway Apps Dashboard</h1>
+
+        <div class="apps-grid" id="appsGrid">
+            <!-- Apps will be loaded here -->
+        </div>
+
+        <div class="last-updated" id="lastUpdated">
+            Last updated: Never
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Add your Railway apps here
+        const apps = [
+            {
+                name: 'YouTube News Scraper',
+                url: 'https://cheerful-serenity-production-3e99.up.railway.app',
+                healthEndpoint: '/health'
+            },
+            {
+                name: 'Complete Physio Weekly Summary',
+                url: 'https://cheerful-serenity-production-3e99.up.railway.app',
+                healthEndpoint: '/health'
+            }
+        ];
+
+        async function checkAppStatus(app) {
+            try {
+                const response = await fetch(app.url + app.healthEndpoint, {
+                    method: 'GET',
+                    mode: 'cors'
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    return {
+                        online: true,
+                        ...data
+                    };
+                }
+                return { online: false };
+            } catch (error) {
+                return { online: false, error: error.message };
+            }
+        }
+
+        function formatDate(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+
+        function createAppCard(app, status) {
+            const statusClass = status.online ? 'online' : 'offline';
+            const statusText = status.online ? 'Online' : 'Offline';
+
+            return `
+                <div class="app-card">
+                    <div class="app-header">
+                        <div class="app-name">${app.name}</div>
+                        <div class="status">
+                            <div class="status-dot ${statusClass}"></div>
+                            ${statusText}
+                        </div>
+                    </div>
+
+                    <div class="app-info">
+                        <div class="info-row">
+                            <span class="info-label">Version:</span>
+                            <span class="info-value">${status.version || 'N/A'}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Last Check:</span>
+                            <span class="info-value">${formatDate(status.timestamp)}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Scheduler:</span>
+                            <span class="info-value">${status.scheduler_running ? '✓ Running' : '✗ Not Running'}</span>
+                        </div>
+                    </div>
+
+                    <div class="app-actions">
+                        <button class="btn btn-primary" onclick="window.open('${app.url}', '_blank')">
+                            Open App
+                        </button>
+                        <button class="btn" onclick="refreshApp('${app.name}')">
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function refreshDashboard() {
+            const grid = document.getElementById('appsGrid');
+            grid.innerHTML = apps.map(app => `
+                <div class="app-card">
+                    <div class="app-header">
+                        <div class="app-name">${app.name}</div>
+                        <div class="status">
+                            <div class="status-dot loading"></div>
+                            Checking...
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            const statuses = await Promise.all(apps.map(app => checkAppStatus(app)));
+
+            grid.innerHTML = apps.map((app, index) =>
+                createAppCard(app, statuses[index])
+            ).join('');
+
+            document.getElementById('lastUpdated').textContent =
+                `Last updated: ${new Date().toLocaleString()}`;
+        }
+
+        async function refreshApp(appName) {
+            const app = apps.find(a => a.name === appName);
+            if (!app) return;
+
+            await refreshDashboard();
+        }
+
+        // Initial load
+        refreshDashboard();
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshDashboard, 30000);
+    </script>
+</body>
+</html>

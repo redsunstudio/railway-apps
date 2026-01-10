@@ -7,6 +7,9 @@ Sends weekly email summary every Friday afternoon
 import os
 import logging
 from datetime import datetime
+from http.server import HTTPServer, BaseHTTPRequestHandler
+import json
+import threading
 
 from instagram_scraper import InstagramScraper
 from rss_parser import RSSParser
@@ -19,6 +22,43 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Global status tracker
+app_status = {
+    'scheduler_running': False,
+    'last_run': None,
+    'version': '1.0.0',
+    'start_time': datetime.now().isoformat()
+}
+
+
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    """Simple HTTP server for health checks"""
+
+    def do_GET(self):
+        if self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+
+            response = {
+                'status': 'healthy',
+                'timestamp': datetime.now().isoformat(),
+                'scheduler_running': app_status['scheduler_running'],
+                'last_run': app_status['last_run'],
+                'version': app_status['version'],
+                'start_time': app_status['start_time']
+            }
+
+            self.wfile.write(json.dumps(response).encode())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        # Suppress default logging
+        pass
 
 
 class CompletePhysioSummary:
@@ -117,6 +157,9 @@ class CompletePhysioSummary:
     def generate_and_send_summary(self):
         """Main task: collect content and send weekly summary email"""
         try:
+            # Update last run time
+            app_status['last_run'] = datetime.now().isoformat()
+
             # Collect all content
             instagram_posts, youtube_entries, blog_entries, newsletter_entries = self.collect_all_content()
 
@@ -149,6 +192,7 @@ class CompletePhysioSummary:
     def run_scheduler(self):
         """Start the scheduler to run weekly summaries every Friday"""
         logger.info("Starting weekly scheduler...")
+        app_status['scheduler_running'] = True
 
         scheduler = WeeklyScheduler(self.generate_and_send_summary)
         scheduler.run_forever()
@@ -159,8 +203,20 @@ class CompletePhysioSummary:
         return self.generate_and_send_summary()
 
 
+def start_health_server():
+    """Start the health check HTTP server in a background thread"""
+    port = int(os.getenv('PORT', 8080))
+    server = HTTPServer(('0.0.0.0', port), HealthCheckHandler)
+    logger.info(f"Health check server running on port {port}")
+    server.serve_forever()
+
+
 def main():
     """Main entry point"""
+    # Start health check server in background thread
+    health_thread = threading.Thread(target=start_health_server, daemon=True)
+    health_thread.start()
+
     app = CompletePhysioSummary()
 
     # Check if running in test mode
