@@ -45,23 +45,41 @@ class EmailSender:
             creds_info = json.loads(self.credentials_json)
             token_info = json.loads(self.token_json)
 
-            # Create credentials object
+            logger.info("Creating Gmail API credentials...")
+            logger.info(f"Has refresh_token: {bool(token_info.get('refresh_token'))}")
+            logger.info(f"Has client_id: {bool(creds_info.get('client_id') or token_info.get('client_id'))}")
+            logger.info(f"Has client_secret: {bool(creds_info.get('client_secret') or token_info.get('client_secret'))}")
+
+            # Get client_id and client_secret from either source
+            # (credentials.json for installed apps, or token.json if already there)
+            if 'installed' in creds_info:
+                client_id = creds_info['installed']['client_id']
+                client_secret = creds_info['installed']['client_secret']
+                token_uri = creds_info['installed']['token_uri']
+            else:
+                client_id = creds_info.get('client_id') or token_info.get('client_id')
+                client_secret = creds_info.get('client_secret') or token_info.get('client_secret')
+                token_uri = creds_info.get('token_uri', 'https://oauth2.googleapis.com/token')
+
+            # Create credentials object with all required fields
             creds = Credentials(
                 token=token_info.get('token'),
                 refresh_token=token_info.get('refresh_token'),
-                token_uri=creds_info.get('token_uri', 'https://oauth2.googleapis.com/token'),
-                client_id=creds_info.get('client_id'),
-                client_secret=creds_info.get('client_secret'),
+                token_uri=token_uri,
+                client_id=client_id,
+                client_secret=client_secret,
                 scopes=['https://www.googleapis.com/auth/gmail.send']
             )
 
             # Build Gmail API service
             service = build('gmail', 'v1', credentials=creds)
-            logger.info("Gmail API service created successfully")
+            logger.info("✅ Gmail API service created successfully")
             return service
 
         except Exception as e:
-            logger.error(f"Failed to create Gmail API service: {e}")
+            logger.error(f"❌ Failed to create Gmail API service: {e}")
+            logger.error(f"Credentials format: {type(creds_info)}")
+            logger.error(f"Token format: {type(token_info)}")
             raise
 
     def send_weekly_summary(self, subject, html_body, text_body):
