@@ -6,6 +6,32 @@ from datetime import datetime
 import threading
 import logging
 import json
+from collections import deque
+
+# In-memory log storage for web viewing
+log_buffer = deque(maxlen=500)
+
+class BufferHandler(logging.Handler):
+    """Custom handler to store logs in memory"""
+    def emit(self, record):
+        log_entry = {
+            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': self.format(record)
+        }
+        log_buffer.append(log_entry)
+
+# Configure logging FIRST before any other imports that might use it
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        BufferHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
 
 from scheduler import NewsScheduler
 from scraper import YouTubeNewsScraper
@@ -32,12 +58,6 @@ def get_email_sender():
         logger.info("Using SMTP for email sending")
         return EmailSender()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
 CORS(app)
 
@@ -50,16 +70,24 @@ def start_scheduler_in_background():
     """Start the scheduler in a background thread"""
     global scheduler
     try:
+        logger.info("🔧 Initializing scheduler in background thread...")
         scheduler = NewsScheduler()
+        logger.info("✅ Scheduler initialized, starting scheduler loop...")
         scheduler.start()
     except Exception as e:
-        logger.error(f"Error starting scheduler: {e}")
+        logger.error(f"❌ CRITICAL: Error starting scheduler: {e}", exc_info=True)
+        logger.error("⚠️  Scheduler will NOT run - emails will not be sent!")
 
 
 # Start scheduler immediately when module loads (for Gunicorn)
+logger.info("=" * 80)
+logger.info("🚀 YouTube News Scraper - Flask App Starting")
+logger.info(f"⏰ Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+logger.info("=" * 80)
+
 scheduler_thread = threading.Thread(target=start_scheduler_in_background, daemon=True)
 scheduler_thread.start()
-logger.info("🚀 Started background scheduler thread")
+logger.info("✅ Background scheduler thread launched")
 
 
 # Health check endpoint
@@ -70,7 +98,68 @@ def health():
         'timestamp': datetime.utcnow().isoformat(),
         'scheduler_running': scheduler is not None,
         'dashboard_enabled': True,
-        'version': '1.1.0'
+        'version': '1.2.1'
+    }), 200
+
+
+# Logs viewer endpoint
+@app.route('/api/logs', methods=['GET'])
+def view_logs():
+    """View recent application logs"""
+    limit = request.args.get('limit', 100, type=int)
+    level = request.args.get('level', None)  # Filter by level: INFO, WARNING, ERROR
+
+    logs = list(log_buffer)
+
+    # Filter by level if specified
+    if level:
+        logs = [log for log in logs if log['level'] == level.upper()]
+
+    # Return most recent logs up to limit
+    recent_logs = logs[-limit:]
+
+    return jsonify({
+        'total_logs': len(logs),
+        'returned': len(recent_logs),
+        'logs': recent_logs
+    }), 200
+
+
+# Diagnostics endpoint
+@app.route('/api/diagnostics', methods=['GET'])
+def diagnostics():
+    """Get system diagnostics and configuration status"""
+    env_vars = {
+        'SENDER_EMAIL': os.getenv('SENDER_EMAIL', 'NOT SET'),
+        'RECIPIENT_EMAIL': os.getenv('RECIPIENT_EMAIL', 'NOT SET'),
+        'SCHEDULE_TIME': os.getenv('SCHEDULE_TIME', 'NOT SET (default: 03:00)'),
+        'RUN_ON_STARTUP': os.getenv('RUN_ON_STARTUP', 'NOT SET (default: false)'),
+        'SMTP_SERVER': os.getenv('SMTP_SERVER', 'NOT SET (default: smtp.gmail.com)'),
+        'SMTP_PORT': os.getenv('SMTP_PORT', 'NOT SET (default: 587)'),
+        'GMAIL_API_AVAILABLE': GMAIL_API_AVAILABLE,
+        'GMAIL_CREDENTIALS_JSON': 'SET' if os.getenv('GMAIL_CREDENTIALS_JSON') else 'NOT SET',
+        'GMAIL_TOKEN_JSON': 'SET' if os.getenv('GMAIL_TOKEN_JSON') else 'NOT SET',
+        'SENDER_PASSWORD': 'SET' if os.getenv('SENDER_PASSWORD') else 'NOT SET'
+    }
+
+    # Determine email configuration status
+    gmail_api_configured = bool(os.getenv('GMAIL_CREDENTIALS_JSON') and os.getenv('GMAIL_TOKEN_JSON'))
+    smtp_configured = bool(os.getenv('SENDER_PASSWORD'))
+
+    email_status = 'NOT CONFIGURED'
+    if gmail_api_configured:
+        email_status = 'Gmail API (RECOMMENDED for Railway)'
+    elif smtp_configured:
+        email_status = 'SMTP (WARNING: Blocked on Railway)'
+
+    return jsonify({
+        'scheduler_running': scheduler is not None,
+        'scheduler_object': str(type(scheduler)) if scheduler else None,
+        'current_time': datetime.now().isoformat(),
+        'environment_variables': env_vars,
+        'email_sender_configured': email_status,
+        'python_version': os.sys.version,
+        'app_version': '1.2.1'
     }), 200
 
 
