@@ -6,11 +6,30 @@ from datetime import datetime
 import threading
 import logging
 import json
+from collections import deque
+
+# In-memory log storage for web viewing
+log_buffer = deque(maxlen=500)
+
+class BufferHandler(logging.Handler):
+    """Custom handler to store logs in memory"""
+    def emit(self, record):
+        log_entry = {
+            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': self.format(record)
+        }
+        log_buffer.append(log_entry)
 
 # Configure logging FIRST before any other imports that might use it
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        BufferHandler()
+    ]
 )
 logger = logging.getLogger(__name__)
 
@@ -80,6 +99,56 @@ def health():
         'scheduler_running': scheduler is not None,
         'dashboard_enabled': True,
         'version': '1.2.0'
+    }), 200
+
+
+# Logs viewer endpoint
+@app.route('/api/logs', methods=['GET'])
+def view_logs():
+    """View recent application logs"""
+    limit = request.args.get('limit', 100, type=int)
+    level = request.args.get('level', None)  # Filter by level: INFO, WARNING, ERROR
+
+    logs = list(log_buffer)
+
+    # Filter by level if specified
+    if level:
+        logs = [log for log in logs if log['level'] == level.upper()]
+
+    # Return most recent logs up to limit
+    recent_logs = logs[-limit:]
+
+    return jsonify({
+        'total_logs': len(logs),
+        'returned': len(recent_logs),
+        'logs': recent_logs
+    }), 200
+
+
+# Diagnostics endpoint
+@app.route('/api/diagnostics', methods=['GET'])
+def diagnostics():
+    """Get system diagnostics and configuration status"""
+    env_vars = {
+        'SENDER_EMAIL': os.getenv('SENDER_EMAIL', 'NOT SET'),
+        'RECIPIENT_EMAIL': os.getenv('RECIPIENT_EMAIL', 'NOT SET'),
+        'SCHEDULE_TIME': os.getenv('SCHEDULE_TIME', 'NOT SET (default: 03:00)'),
+        'RUN_ON_STARTUP': os.getenv('RUN_ON_STARTUP', 'NOT SET (default: false)'),
+        'SMTP_SERVER': os.getenv('SMTP_SERVER', 'NOT SET (default: smtp.gmail.com)'),
+        'SMTP_PORT': os.getenv('SMTP_PORT', 'NOT SET (default: 587)'),
+        'GMAIL_API_AVAILABLE': GMAIL_API_AVAILABLE,
+        'GMAIL_CREDENTIALS_JSON': 'SET' if os.getenv('GMAIL_CREDENTIALS_JSON') else 'NOT SET',
+        'GMAIL_TOKEN_JSON': 'SET' if os.getenv('GMAIL_TOKEN_JSON') else 'NOT SET',
+        'SENDER_PASSWORD': 'SET' if os.getenv('SENDER_PASSWORD') else 'NOT SET'
+    }
+
+    return jsonify({
+        'scheduler_running': scheduler is not None,
+        'scheduler_object': str(type(scheduler)) if scheduler else None,
+        'current_time': datetime.now().isoformat(),
+        'environment_variables': env_vars,
+        'python_version': os.sys.version,
+        'app_version': '1.2.0'
     }), 200
 
 
