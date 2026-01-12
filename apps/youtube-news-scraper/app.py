@@ -98,7 +98,7 @@ def health():
         'timestamp': datetime.utcnow().isoformat(),
         'scheduler_running': scheduler is not None,
         'dashboard_enabled': True,
-        'version': '1.2.0'
+        'version': '1.2.1'
     }), 200
 
 
@@ -142,13 +142,24 @@ def diagnostics():
         'SENDER_PASSWORD': 'SET' if os.getenv('SENDER_PASSWORD') else 'NOT SET'
     }
 
+    # Determine email configuration status
+    gmail_api_configured = bool(os.getenv('GMAIL_CREDENTIALS_JSON') and os.getenv('GMAIL_TOKEN_JSON'))
+    smtp_configured = bool(os.getenv('SENDER_PASSWORD'))
+
+    email_status = 'NOT CONFIGURED'
+    if gmail_api_configured:
+        email_status = 'Gmail API (RECOMMENDED for Railway)'
+    elif smtp_configured:
+        email_status = 'SMTP (WARNING: Blocked on Railway)'
+
     return jsonify({
         'scheduler_running': scheduler is not None,
         'scheduler_object': str(type(scheduler)) if scheduler else None,
         'current_time': datetime.now().isoformat(),
         'environment_variables': env_vars,
+        'email_sender_configured': email_status,
         'python_version': os.sys.version,
-        'app_version': '1.2.0'
+        'app_version': '1.2.1'
     }), 200
 
 
