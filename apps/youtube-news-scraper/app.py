@@ -7,6 +7,13 @@ import threading
 import logging
 import json
 
+# Configure logging FIRST before any other imports that might use it
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 from scheduler import NewsScheduler
 from scraper import YouTubeNewsScraper
 from email_sender import EmailSender
@@ -32,12 +39,6 @@ def get_email_sender():
         logger.info("Using SMTP for email sending")
         return EmailSender()
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
 CORS(app)
 
@@ -50,16 +51,24 @@ def start_scheduler_in_background():
     """Start the scheduler in a background thread"""
     global scheduler
     try:
+        logger.info("🔧 Initializing scheduler in background thread...")
         scheduler = NewsScheduler()
+        logger.info("✅ Scheduler initialized, starting scheduler loop...")
         scheduler.start()
     except Exception as e:
-        logger.error(f"Error starting scheduler: {e}")
+        logger.error(f"❌ CRITICAL: Error starting scheduler: {e}", exc_info=True)
+        logger.error("⚠️  Scheduler will NOT run - emails will not be sent!")
 
 
 # Start scheduler immediately when module loads (for Gunicorn)
+logger.info("=" * 80)
+logger.info("🚀 YouTube News Scraper - Flask App Starting")
+logger.info(f"⏰ Current time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+logger.info("=" * 80)
+
 scheduler_thread = threading.Thread(target=start_scheduler_in_background, daemon=True)
 scheduler_thread.start()
-logger.info("🚀 Started background scheduler thread")
+logger.info("✅ Background scheduler thread launched")
 
 
 # Health check endpoint
