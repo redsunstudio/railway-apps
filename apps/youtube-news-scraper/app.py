@@ -79,7 +79,7 @@ def health():
         'timestamp': datetime.utcnow().isoformat(),
         'scheduler_running': scheduler is not None,
         'dashboard_enabled': True,
-        'version': '1.1.0'
+        'version': '1.2.0'
     }), 200
 
 
