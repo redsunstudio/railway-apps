@@ -181,6 +181,13 @@ Use the same process for unlimited apps. All managed from this one repository!
 - **Project overview**: See [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)
 - **Railway docs**: https://docs.railway.app
 
+## Development Guides (SOPs)
+
+- **[DEVELOPMENT_SOPS.md](DEVELOPMENT_SOPS.md)** - Step-by-step workflows for daily development
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - What each file does (file map)
+- **[LOCAL_TESTING.md](LOCAL_TESTING.md)** - How to test before deploying
+- **[TROUBLESHOOTING.md](TROUBLESHOOTING.md)** - Common problems and solutions
+
 ## Common Questions
 
 **Q: Do I need a credit card?**
