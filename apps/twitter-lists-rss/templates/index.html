@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Twitter Lists RSS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #0a0a0a;
+            --bg-tertiary: #141414;
+            --border-color: #222222;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
+            --text-tertiary: #666666;
+            --accent: #ffffff;
+            --accent-hover: #e0e0e0;
+            --error: #ff4444;
+            --success: #44ff44;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 80px 24px;
+        }
+
+        header {
+            margin-bottom: 64px;
+        }
+
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 15px;
+        }
+
+        .add-section {
+            margin-bottom: 48px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        input[type="text"],
+        input[type="url"] {
+            flex: 1;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 14px 16px;
+            font-size: 15px;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        input::placeholder {
+            color: var(--text-tertiary);
+        }
+
+        input:focus {
+            border-color: var(--text-secondary);
+            background: var(--bg-tertiary);
+        }
+
+        button {
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            padding: 14px 24px;
+            font-size: 15px;
+            font-weight: 500;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        button.secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        button.secondary:hover {
+            background: var(--bg-tertiary);
+        }
+
+        button.danger {
+            background: transparent;
+            color: var(--error);
+            border: 1px solid var(--error);
+            opacity: 0.7;
+        }
+
+        button.danger:hover {
+            opacity: 1;
+            background: rgba(255, 68, 68, 0.1);
+        }
+
+        .lists-section h2 {
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .list-item {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 12px;
+            transition: border-color 0.2s;
+        }
+
+        .list-item:hover {
+            border-color: var(--text-tertiary);
+        }
+
+        .list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .list-name {
+            font-size: 17px;
+            font-weight: 500;
+        }
+
+        .list-name input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 17px;
+            font-weight: 500;
+            padding: 4px 0;
+            width: 100%;
+            outline: none;
+        }
+
+        .list-name input:focus {
+            border-color: var(--text-secondary);
+        }
+
+        .list-id {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        .list-actions {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+
+        .list-actions button {
+            padding: 8px 12px;
+            font-size: 13px;
+        }
+
+        .feed-url {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border-color);
+        }
+
+        .feed-url-input {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 12px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .copy-btn {
+            padding: 10px 16px;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 64px 24px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state p {
+            margin-bottom: 8px;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 14px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            opacity: 0;
+            transition: transform 0.3s, opacity 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.error {
+            border-color: var(--error);
+            color: var(--error);
+        }
+
+        .toast.success {
+            border-color: var(--success);
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--border-color);
+            border-top-color: var(--text-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hint {
+            font-size: 13px;
+            color: var(--text-tertiary);
+            margin-top: 8px;
+        }
+
+        .hint code {
+            background: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+        }
+
+        footer {
+            margin-top: 64px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-tertiary);
+            font-size: 13px;
+        }
+
+        footer a {
+            color: var(--text-secondary);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            color: var(--text-primary);
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 48px 16px;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            h1 {
+                font-size: 28px;
+            }
+
+            .list-header {
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .list-actions {
+                width: 100%;
+            }
+
+            .list-actions button {
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Twitter Lists RSS</h1>
+            <p class="subtitle">Convert public Twitter lists to RSS feeds</p>
+        </header>
+
+        <section class="add-section">
+            <div class="input-group">
+                <input type="url" id="listUrl" placeholder="https://x.com/i/lists/..." autocomplete="off">
+                <button onclick="addList()" id="addBtn">Add</button>
+            </div>
+            <div class="input-group">
+                <input type="text" id="listName" placeholder="List name (optional)">
+            </div>
+            <p class="hint">Paste a Twitter/X list URL like <code>x.com/i/lists/123...</code></p>
+        </section>
+
+        <section class="lists-section">
+            <h2>Your Lists</h2>
+            <div id="listsContainer">
+                <div class="empty-state">
+                    <p>No lists added yet</p>
+                    <p>Add a Twitter list URL above to get started</p>
+                </div>
+            </div>
+        </section>
+
+        <footer>
+            <p>RSS feeds update on each request. Add the feed URL to your RSS reader.</p>
+        </footer>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        const API_BASE = '';
+        let lists = [];
+
+        // Load lists on page load
+        document.addEventListener('DOMContentLoaded', loadLists);
+
+        // Enter key to add list
+        document.getElementById('listUrl').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addList();
+        });
+
+        async function loadLists() {
+            try {
+                const res = await fetch(`${API_BASE}/api/lists`);
+                const data = await res.json();
+                if (data.success) {
+                    lists = data.lists;
+                    renderLists();
+                }
+            } catch (err) {
+                showToast('Failed to load lists', 'error');
+            }
+        }
+
+        async function addList() {
+            const urlInput = document.getElementById('listUrl');
+            const nameInput = document.getElementById('listName');
+            const addBtn = document.getElementById('addBtn');
+
+            const url = urlInput.value.trim();
+            const name = nameInput.value.trim();
+
+            if (!url) {
+                showToast('Please enter a list URL', 'error');
+                return;
+            }
+
+            addBtn.disabled = true;
+            addBtn.innerHTML = '<span class="loading"></span>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/lists`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, name })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    lists.push(data.list);
+                    renderLists();
+                    urlInput.value = '';
+                    nameInput.value = '';
+                    showToast('List added', 'success');
+                } else {
+                    showToast(data.error || 'Failed to add list', 'error');
+                }
+            } catch (err) {
+                showToast('Failed to add list', 'error');
+            } finally {
+                addBtn.disabled = false;
+                addBtn.textContent = 'Add';
+            }
+        }
+
+        async function deleteList(listId) {
+            if (!confirm('Remove this list?')) return;
+
+            try {
+                const res = await fetch(`${API_BASE}/api/lists/${listId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    lists = lists.filter(l => l.list_id !== listId);
+                    renderLists();
+                    showToast('List removed', 'success');
+                } else {
+                    showToast(data.error || 'Failed to remove list', 'error');
+                }
+            } catch (err) {
+                showToast('Failed to remove list', 'error');
+            }
+        }
+
+        async function updateListName(listId, newName) {
+            try {
+                const res = await fetch(`${API_BASE}/api/lists/${listId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: newName })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    const list = lists.find(l => l.list_id === listId);
+                    if (list) list.name = newName;
+                    showToast('Name updated', 'success');
+                }
+            } catch (err) {
+                showToast('Failed to update name', 'error');
+            }
+        }
+
+        function copyFeedUrl(listId) {
+            const feedUrl = `${window.location.origin}/feed/${listId}`;
+            navigator.clipboard.writeText(feedUrl).then(() => {
+                showToast('Feed URL copied', 'success');
+            }).catch(() => {
+                showToast('Failed to copy', 'error');
+            });
+        }
+
+        function renderLists() {
+            const container = document.getElementById('listsContainer');
+
+            if (lists.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <p>No lists added yet</p>
+                        <p>Add a Twitter list URL above to get started</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = lists.map(list => `
+                <div class="list-item" data-id="${list.list_id}">
+                    <div class="list-header">
+                        <div>
+                            <div class="list-name">
+                                <input type="text" value="${escapeHtml(list.name)}"
+                                    onblur="updateListName('${list.list_id}', this.value)"
+                                    onkeypress="if(event.key==='Enter')this.blur()">
+                            </div>
+                            <div class="list-id">${list.list_id}</div>
+                        </div>
+                        <div class="list-actions">
+                            <button class="secondary" onclick="window.open('/feed/${list.list_id}', '_blank')">View Feed</button>
+                            <button class="danger" onclick="deleteList('${list.list_id}')">Remove</button>
+                        </div>
+                    </div>
+                    <div class="feed-url">
+                        <div class="feed-url-input">${window.location.origin}/feed/${list.list_id}</div>
+                        <button class="copy-btn" onclick="copyFeedUrl('${list.list_id}')">Copy</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast show ' + type;
+
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
