@@ -749,8 +749,23 @@ def api_get_contacted_status(subscription_id):
         }), 500
 
 
+def prewarm_cache():
+    """Pre-warm the cache in a background thread"""
+    logger.info("Pre-warming cache in background...")
+    try:
+        get_cached_subscriptions()
+        logger.info("Cache pre-warm complete - subscriptions loaded")
+    except Exception as e:
+        logger.error(f"Cache pre-warm failed: {e}")
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+
+    # Start cache pre-warming in background thread
+    prewarm_thread = threading.Thread(target=prewarm_cache, daemon=True)
+    prewarm_thread.start()
+
     logger.info(f"Starting SOMF Dashboard on port {port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
