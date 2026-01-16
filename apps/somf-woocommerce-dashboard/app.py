@@ -626,6 +626,67 @@ def test_wc():
         }), 500
 
 
+@app.route('/api/test-orders')
+def test_orders():
+    """Test fetching orders with timing"""
+    import time
+    from dateutil.relativedelta import relativedelta
+
+    now = datetime.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    prior_month_start = month_start - relativedelta(months=1)
+
+    start = time.time()
+    try:
+        # Test fetching just one page of MTD orders
+        mtd_start = time.time()
+        data, headers = wc_api_request('orders', {
+            'per_page': 1,
+            'after': month_start.isoformat(),
+            'before': now.isoformat(),
+            'status': 'completed,processing'
+        })
+        mtd_time = time.time() - mtd_start
+        mtd_total = int(headers.get('X-WP-Total', 0))
+        mtd_pages = int(headers.get('X-WP-TotalPages', 0))
+
+        # Test fetching just one page of prior month orders
+        prior_start = time.time()
+        data2, headers2 = wc_api_request('orders', {
+            'per_page': 1,
+            'after': prior_month_start.isoformat(),
+            'before': month_start.isoformat(),
+            'status': 'completed,processing'
+        })
+        prior_time = time.time() - prior_start
+        prior_total = int(headers2.get('X-WP-Total', 0))
+        prior_pages = int(headers2.get('X-WP-TotalPages', 0))
+
+        elapsed = time.time() - start
+        return jsonify({
+            'success': True,
+            'total_time_seconds': round(elapsed, 2),
+            'mtd_orders': {
+                'total': mtd_total,
+                'pages': mtd_pages,
+                'time': round(mtd_time, 2)
+            },
+            'prior_month_orders': {
+                'total': prior_total,
+                'pages': prior_pages,
+                'time': round(prior_time, 2)
+            }
+        })
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"Orders test failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'elapsed_seconds': round(elapsed, 2)
+        }), 500
+
+
 @app.route('/api/test-full-fetch')
 def test_full_fetch():
     """Test fetching all subscriptions with timing per page"""
