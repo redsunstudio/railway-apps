@@ -605,6 +605,29 @@ def health():
     })
 
 
+@app.route('/api/debug')
+def debug():
+    """Debug endpoint - test WooCommerce API with single subscription fetch"""
+    import time
+    start = time.time()
+    try:
+        # Just fetch one subscription to test API connectivity
+        data, headers = wc_api_request('subscriptions', {'per_page': 1})
+        elapsed = time.time() - start
+        return jsonify({
+            'success': True,
+            'api_time': round(elapsed, 2),
+            'total_subscriptions': int(headers.get('X-WP-Total', 0)),
+            'sample': data[0].get('status') if data else None
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'elapsed': round(time.time() - start, 2)
+        }), 500
+
+
 @app.route('/api/metrics')
 def api_metrics():
     """Get current KPI metrics"""
