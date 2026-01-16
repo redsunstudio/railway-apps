@@ -626,6 +626,59 @@ def test_wc():
         }), 500
 
 
+@app.route('/api/test-full-fetch')
+def test_full_fetch():
+    """Test fetching all subscriptions with timing per page"""
+    import time
+    start = time.time()
+    page_times = []
+    total_subs = 0
+
+    try:
+        page = 1
+        while True:
+            page_start = time.time()
+            data, headers = wc_api_request('subscriptions', {
+                'page': page,
+                'per_page': 100
+            })
+            page_time = time.time() - page_start
+            page_times.append({'page': page, 'time': round(page_time, 2), 'count': len(data)})
+
+            if not data:
+                break
+
+            total_subs += len(data)
+            total_pages = int(headers.get('X-WP-TotalPages', 1))
+
+            if page >= total_pages:
+                break
+            page += 1
+
+            # Safety limit
+            if page > 20:
+                break
+
+        elapsed = time.time() - start
+        return jsonify({
+            'success': True,
+            'total_time_seconds': round(elapsed, 2),
+            'total_subscriptions': total_subs,
+            'pages_fetched': len(page_times),
+            'page_times': page_times
+        })
+    except Exception as e:
+        elapsed = time.time() - start
+        logger.error(f"Full fetch test failed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'elapsed_seconds': round(elapsed, 2),
+            'pages_fetched': len(page_times),
+            'page_times': page_times
+        }), 500
+
+
 @app.route('/api/metrics')
 def api_metrics():
     """Get current KPI metrics"""
