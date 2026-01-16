@@ -56,7 +56,7 @@ DB_PATH = os.getenv('DB_PATH', '/app/data/contacted.db')
 
 
 def init_db():
-    """Initialize SQLite database for tracking contacted members"""
+    """Initialize SQLite database for tracking contacted members and caching data"""
     # Ensure directory exists
     db_dir = os.path.dirname(DB_PATH)
     if db_dir and not os.path.exists(db_dir):
@@ -64,6 +64,8 @@ def init_db():
 
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # Table for contacted members
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS contacted_members (
             subscription_id INTEGER PRIMARY KEY,
@@ -71,6 +73,16 @@ def init_db():
             contacted_by TEXT
         )
     ''')
+
+    # Table for persistent cache
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS cache_data (
+            cache_key TEXT PRIMARY KEY,
+            data TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     conn.commit()
     conn.close()
     logger.info(f"Database initialized at {DB_PATH}")
@@ -124,15 +136,89 @@ def get_all_contacted_ids():
     return ids
 
 
+def save_cache_to_db(cache_key, data):
+    """Save cache data to SQLite for persistence across restarts"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT OR REPLACE INTO cache_data (cache_key, data, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (cache_key, json.dumps(data)))
+        conn.commit()
+        conn.close()
+        logger.info(f"Saved {cache_key} to persistent cache")
+    except Exception as e:
+        logger.error(f"Failed to save {cache_key} to DB: {e}")
+
+
+def load_cache_from_db(cache_key):
+    """Load cache data from SQLite"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        cursor.execute('SELECT data, updated_at FROM cache_data WHERE cache_key = ?', (cache_key,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            data = json.loads(row['data'])
+            updated_at = row['updated_at']
+            logger.info(f"Loaded {cache_key} from persistent cache (updated: {updated_at})")
+            return data, updated_at
+        return None, None
+    except Exception as e:
+        logger.error(f"Failed to load {cache_key} from DB: {e}")
+        return None, None
+
+
+def load_all_cache_from_db():
+    """Load all cached data from SQLite into memory on startup"""
+    global cache, last_api_sync
+
+    # Load subscriptions
+    subs_data, subs_time = load_cache_from_db('subscriptions')
+    if subs_data:
+        with cache_lock:
+            cache['subscriptions'] = {
+                'data': subs_data,
+                'timestamp': datetime.now()  # Treat as fresh for initial display
+            }
+        logger.info(f"Loaded {len(subs_data)} subscriptions from persistent cache")
+
+    # Load metrics
+    metrics_data, metrics_time = load_cache_from_db('metrics')
+    if metrics_data:
+        with cache_lock:
+            cache['metrics'] = {
+                'data': metrics_data,
+                'timestamp': datetime.now()
+            }
+        logger.info("Loaded metrics from persistent cache")
+
+    # Load orders
+    for key_suffix in ['mtd_orders', 'prior_month_orders']:
+        orders_data, orders_time = load_cache_from_db(key_suffix)
+        if orders_data:
+            # Reconstruct the cache key format
+            with cache_lock:
+                cache['orders'][key_suffix] = {
+                    'data': orders_data,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"Loaded {key_suffix} from persistent cache")
+
+
 # Initialize database on startup
 try:
     init_db()
+    # Load any previously cached data from SQLite for instant startup
+    load_all_cache_from_db()
 except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
 
 
-# Note: Cache pre-warming is handled by gunicorn.conf.py in production
-# For local development, pre-warming happens in the if __name__ == '__main__' block
+# Background refresh flag
+_refresh_in_progress = False
 
 
 def get_wc_auth():
@@ -208,12 +294,16 @@ def get_cached_subscriptions():
     logger.info("Fetching fresh subscriptions from WooCommerce")
     data = fetch_all_subscriptions()
 
-    # Update cache (brief lock)
+    # Update memory cache (brief lock)
     with cache_lock:
         cache['subscriptions'] = {
             'data': data,
             'timestamp': datetime.now()
         }
+
+    # Persist to SQLite for fast startup next time
+    save_cache_to_db('subscriptions', data)
+
     return data
 
 
@@ -314,10 +404,15 @@ def get_cached_orders(start_date, end_date):
     # Create a cache key based on date range (normalize to date only for better caching)
     cache_key = f"{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}"
 
+    # Determine if this is MTD or prior month for DB storage
+    now = datetime.now()
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    is_mtd = start_date.date() == month_start.date()
+    db_key = 'mtd_orders' if is_mtd else 'prior_month_orders'
+
     # Check cache without long lock hold
     with cache_lock:
         cached = cache['orders'].get(cache_key, {'data': None, 'timestamp': None})
-        now = datetime.now()
         if cached['data'] is not None and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
@@ -328,12 +423,16 @@ def get_cached_orders(start_date, end_date):
     logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
     data = fetch_orders_for_period(start_date, end_date)
 
-    # Update cache (brief lock)
+    # Update memory cache (brief lock)
     with cache_lock:
         cache['orders'][cache_key] = {
             'data': data,
             'timestamp': datetime.now()
         }
+
+    # Persist to SQLite for fast startup next time
+    save_cache_to_db(db_key, data)
+
     return data
 
 
@@ -402,6 +501,8 @@ def get_cached_metrics():
                 'data': data,
                 'timestamp': datetime.now()
             }
+        # Persist to SQLite for fast startup next time
+        save_cache_to_db('metrics', data)
         return data, 'api'
     except Exception as e:
         logger.error(f"Error calculating metrics: {e}")
@@ -668,34 +769,60 @@ def api_historical_revenue():
         }), 500
 
 
+def background_refresh():
+    """Refresh cache in background without blocking requests"""
+    global _refresh_in_progress
+    if _refresh_in_progress:
+        logger.info("Background refresh already in progress, skipping")
+        return
+
+    _refresh_in_progress = True
+    logger.info("Starting background cache refresh...")
+
+    try:
+        # Fetch fresh data (this will update both memory cache and SQLite)
+        fetch_all_subscriptions_fresh = fetch_all_subscriptions()
+        with cache_lock:
+            cache['subscriptions'] = {
+                'data': fetch_all_subscriptions_fresh,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('subscriptions', fetch_all_subscriptions_fresh)
+        logger.info(f"Background refresh: Updated {len(fetch_all_subscriptions_fresh)} subscriptions")
+
+        # Refresh metrics (which also refreshes orders)
+        fresh_metrics = calculate_metrics()
+        with cache_lock:
+            cache['metrics'] = {
+                'data': fresh_metrics,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('metrics', fresh_metrics)
+        logger.info("Background refresh: Updated metrics")
+
+        logger.info("Background cache refresh complete")
+    except Exception as e:
+        logger.error(f"Background refresh failed: {e}")
+    finally:
+        _refresh_in_progress = False
+
+
+def start_background_refresh():
+    """Start background refresh in a separate thread"""
+    t = threading.Thread(target=background_refresh, daemon=True)
+    t.start()
+    return t
+
+
 @app.route('/api/refresh', methods=['POST'])
 def api_refresh():
-    """Force refresh all cached data"""
-    global cache
-    with cache_lock:
-        cache = {
-            'metrics': {'data': None, 'timestamp': None},
-            'subscriptions': {'data': None, 'timestamp': None},
-            'orders': {},  # Clear orders cache
-            'pending_cancellations': {'data': None, 'timestamp': None},
-            'pending_payments': {'data': None, 'timestamp': None},
-            'historical_members': {},
-            'historical_revenue': {}
-        }
-
-    # Trigger fresh fetch of subscriptions first, then metrics
-    try:
-        get_cached_subscriptions()  # This will cache subscriptions for other calls
-        get_cached_metrics()  # This will also cache orders as a side effect
-        return jsonify({
-            'success': True,
-            'message': 'Cache cleared and data refreshed'
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+    """Force refresh all cached data (runs in background, returns immediately)"""
+    # Start refresh in background so user doesn't have to wait
+    start_background_refresh()
+    return jsonify({
+        'success': True,
+        'message': 'Cache refresh started in background'
+    })
 
 
 @app.route('/api/pending-cancellations')

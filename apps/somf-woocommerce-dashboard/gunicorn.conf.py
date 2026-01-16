@@ -15,8 +15,21 @@ preload_app = False
 def post_worker_init(worker):
     """Called just after a worker has been initialized."""
     worker.log.info(f"Worker {worker.pid} initialized")
-    # Cache warming removed - the first request will warm the cache.
-    # Background warming was causing threading conflicts with request handling.
+
+    # Start background refresh after a delay (allows worker to start accepting requests first)
+    def delayed_refresh():
+        import time
+        time.sleep(5)  # Wait 5 seconds for worker to be fully ready
+        try:
+            from app import start_background_refresh, logger
+            logger.info(f"Worker {worker.pid}: Starting background data refresh")
+            start_background_refresh()
+        except Exception as e:
+            worker.log.error(f"Worker {worker.pid}: Background refresh failed: {e}")
+
+    import threading
+    t = threading.Thread(target=delayed_refresh, daemon=True)
+    t.start()
 
 def on_starting(server):
     """Called just before the master process is initialized."""
