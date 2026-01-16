@@ -129,25 +129,8 @@ except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
 
 
-def prewarm_cache():
-    """Pre-warm the cache in a background thread"""
-    logger.info("Pre-warming cache in background...")
-    try:
-        get_cached_subscriptions()
-        logger.info("Cache pre-warm complete - subscriptions loaded")
-    except Exception as e:
-        logger.error(f"Cache pre-warm failed: {e}")
-
-
-# Start cache pre-warming immediately on module load (works with gunicorn)
-# Using a small delay to ensure Flask app is fully initialized
-def _delayed_prewarm():
-    time.sleep(2)  # Small delay to let app initialize
-    prewarm_cache()
-
-_prewarm_thread = threading.Thread(target=_delayed_prewarm, daemon=True)
-_prewarm_thread.start()
-logger.info("Started background cache pre-warming thread")
+# Note: Cache pre-warming is handled by gunicorn.conf.py in production
+# For local development, pre-warming happens in the if __name__ == '__main__' block
 
 
 def get_wc_auth():
@@ -773,5 +756,18 @@ def api_get_contacted_status(subscription_id):
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
+
+    # Pre-warm cache for local development
+    def prewarm_local():
+        logger.info("Pre-warming cache for local development...")
+        try:
+            get_cached_subscriptions()
+            logger.info("Local cache pre-warm complete")
+        except Exception as e:
+            logger.error(f"Local cache pre-warm failed: {e}")
+
+    prewarm_thread = threading.Thread(target=prewarm_local, daemon=True)
+    prewarm_thread.start()
+
     logger.info(f"Starting SOMF Dashboard on port {port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
