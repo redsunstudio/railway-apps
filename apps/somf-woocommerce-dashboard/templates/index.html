@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOMF KPI's Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background-color: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Header with Logo */
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            width: 80px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .kpi-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .kpi-row:last-child {
+            border-bottom: none;
+        }
+
+        .kpi-label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.95rem;
+            color: #555;
+        }
+
+        .kpi-icon {
+            width: 20px;
+            height: 20px;
+            opacity: 0.6;
+        }
+
+        .kpi-value {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .kpi-value.currency {
+            color: #2e7d32;
+        }
+
+        /* Charts Section */
+        .chart-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .chart-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .chart-title svg {
+            width: 18px;
+            height: 18px;
+            opacity: 0.7;
+        }
+
+        .period-select {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 200px;
+            width: 100%;
+        }
+
+        /* Refresh Button */
+        .refresh-section {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .refresh-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            background: #4a4a4a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: #333;
+        }
+
+        .refresh-btn:disabled {
+            background: #999;
+            cursor: not-allowed;
+        }
+
+        .refresh-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .refresh-btn.loading svg {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status Bar */
+        .status-bar {
+            text-align: center;
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 20px;
+        }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: #333;
+            text-decoration: underline;
+        }
+
+        /* Loading State */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #eee;
+            border-top-color: #333;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        /* Error State */
+        .error-message {
+            background: #fff3cd;
+            color: #856404;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+
+            .kpi-row {
+                padding: 12px 15px;
+            }
+
+            .chart-container {
+                height: 180px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-spinner"></div>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <!-- Golden Wreath Logo -->
+            <svg class="logo" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#D4AF37"/>
+                        <stop offset="50%" style="stop-color:#F4D03F"/>
+                        <stop offset="100%" style="stop-color:#D4AF37"/>
+                    </linearGradient>
+                </defs>
+                <!-- Left Branch -->
+                <path d="M30 80 Q20 60 25 40 Q30 50 35 45 Q25 55 30 70 Q35 60 40 55 Q30 65 32 75 Q38 65 45 60 Q35 70 35 78"
+                      fill="url(#goldGradient)" stroke="#B8960C" stroke-width="0.5"/>
+                <!-- Right Branch -->
+                <path d="M70 80 Q80 60 75 40 Q70 50 65 45 Q75 55 70 70 Q65 60 60 55 Q70 65 68 75 Q62 65 55 60 Q65 70 65 78"
+                      fill="url(#goldGradient)" stroke="#B8960C" stroke-width="0.5"/>
+                <!-- Leaves Left -->
+                <ellipse cx="22" cy="35" rx="6" ry="12" fill="url(#goldGradient)" transform="rotate(-30 22 35)"/>
+                <ellipse cx="28" cy="28" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(-15 28 28)"/>
+                <ellipse cx="38" cy="22" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(5 38 22)"/>
+                <ellipse cx="48" cy="18" rx="5" ry="9" fill="url(#goldGradient)" transform="rotate(20 48 18)"/>
+                <!-- Leaves Right -->
+                <ellipse cx="78" cy="35" rx="6" ry="12" fill="url(#goldGradient)" transform="rotate(30 78 35)"/>
+                <ellipse cx="72" cy="28" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(15 72 28)"/>
+                <ellipse cx="62" cy="22" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(-5 62 22)"/>
+                <ellipse cx="52" cy="18" rx="5" ry="9" fill="url(#goldGradient)" transform="rotate(-20 52 18)"/>
+            </svg>
+            <h1>SOMF KPI's</h1>
+        </div>
+
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Month To Date
+                </div>
+                <div class="kpi-value currency" id="monthlyRevenue">-</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    Revenue Prior Month
+                </div>
+                <div class="kpi-value currency" id="priorMonthRevenue">-</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    Active Members
+                </div>
+                <div class="kpi-value" id="activeMembers">-</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Pending Cancellation
+                </div>
+                <div class="kpi-value" id="pendingCancellation">-</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Pending Payment
+                </div>
+                <div class="kpi-value" id="pendingPayment">-</div>
+            </div>
+
+            <div class="kpi-row">
+                <div class="kpi-label">
+                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    On Hold
+                </div>
+                <div class="kpi-value" id="onHold">-</div>
+            </div>
+        </div>
+
+        <!-- Active Members Trend Chart -->
+        <div class="chart-section">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                    </svg>
+                    Active Members Trend
+                </div>
+                <select class="period-select" id="membersPeriod" onchange="updateMembersChart()">
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="60">Last 60 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="120">Last 120 days</option>
+                    <option value="150">Last 150 days</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="membersChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Prior Month Revenue Trend Chart -->
+        <div class="chart-section">
+            <div class="chart-header">
+                <div class="chart-title">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    Prior Month Revenue Trend
+                </div>
+                <select class="period-select" id="revenuePeriod" onchange="updateRevenueChart()">
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30" selected>Last 30 days</option>
+                    <option value="60">Last 60 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="120">Last 120 days</option>
+                    <option value="150">Last 150 days</option>
+                </select>
+            </div>
+            <div class="chart-container">
+                <canvas id="revenueChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Refresh Button -->
+        <div class="refresh-section">
+            <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                </svg>
+                Refresh
+            </button>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar" id="statusBar">
+            Loading...
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            Powered by John Isaacson Digital<br>
+            Need a web tool? speak to <a href="mailto:john@johnisaacson.com">John</a>!
+        </div>
+    </div>
+
+    <script>
+        // Chart instances
+        let membersChart = null;
+        let revenueChart = null;
+
+        // State
+        let lastUpdated = null;
+        let lastApiSync = null;
+        let dataSource = 'loading';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            loadAllData();
+
+            // Auto-refresh every 5 minutes
+            setInterval(loadAllData, 5 * 60 * 1000);
+        });
+
+        function initCharts() {
+            // Members Chart
+            const membersCtx = document.getElementById('membersChart').getContext('2d');
+            membersChart = new Chart(membersCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Active Members',
+                        data: [],
+                        borderColor: '#4F4F4F',
+                        backgroundColor: 'rgba(79, 79, 79, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#4F4F4F'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: '#eee' }
+                        }
+                    }
+                }
+            });
+
+            // Revenue Chart
+            const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+            revenueChart = new Chart(revenueCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Revenue',
+                        data: [],
+                        borderColor: '#2E7D32',
+                        backgroundColor: 'rgba(46, 125, 50, 0.1)',
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 3,
+                        pointBackgroundColor: '#2E7D32'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        x: {
+                            grid: { display: false }
+                        },
+                        y: {
+                            beginAtZero: false,
+                            grid: { color: '#eee' },
+                            ticks: {
+                                callback: (value) => '£' + value.toLocaleString()
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadAllData() {
+            try {
+                await Promise.all([
+                    loadMetrics(),
+                    updateMembersChart(),
+                    updateRevenueChart()
+                ]);
+            } catch (error) {
+                showError('Failed to load data. Please try again.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        async function loadMetrics() {
+            try {
+                const response = await fetch('/api/metrics');
+                const result = await response.json();
+
+                if (result.success) {
+                    const data = result.data;
+
+                    document.getElementById('monthlyRevenue').textContent = data.monthly_revenue || '£0.00';
+                    document.getElementById('priorMonthRevenue').textContent = data.prior_month_revenue || '£0.00';
+                    document.getElementById('activeMembers').textContent = data.active || 0;
+                    document.getElementById('pendingCancellation').textContent = data['pending-cancel'] || 0;
+                    document.getElementById('pendingPayment').textContent = data.pending || 0;
+                    document.getElementById('onHold').textContent = data['on-hold'] || 0;
+
+                    lastUpdated = result.last_updated;
+                    lastApiSync = data.last_api_connection;
+                    dataSource = result.source;
+
+                    updateStatusBar();
+                    hideError();
+                } else {
+                    throw new Error(result.error || 'Failed to load metrics');
+                }
+            } catch (error) {
+                console.error('Error loading metrics:', error);
+                throw error;
+            }
+        }
+
+        async function updateMembersChart() {
+            const days = document.getElementById('membersPeriod').value;
+
+            try {
+                const response = await fetch(`/api/historical-active-members?days=${days}`);
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const labels = result.data.map(d => formatDate(d.date));
+                    const values = result.data.map(d => d.active_count);
+
+                    membersChart.data.labels = labels;
+                    membersChart.data.datasets[0].data = values;
+                    membersChart.update();
+                }
+            } catch (error) {
+                console.error('Error loading members chart:', error);
+            }
+        }
+
+        async function updateRevenueChart() {
+            const days = document.getElementById('revenuePeriod').value;
+
+            try {
+                const response = await fetch(`/api/historical-revenue?days=${days}`);
+                const result = await response.json();
+
+                if (result.success && result.data) {
+                    const labels = result.data.map(d => formatDate(d.date));
+                    const values = result.data.map(d => d.revenue);
+
+                    revenueChart.data.labels = labels;
+                    revenueChart.data.datasets[0].data = values;
+                    revenueChart.update();
+                }
+            } catch (error) {
+                console.error('Error loading revenue chart:', error);
+            }
+        }
+
+        async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.classList.add('loading');
+
+            try {
+                // Clear cache on server
+                await fetch('/api/refresh', { method: 'POST' });
+
+                // Reload all data
+                await loadAllData();
+            } catch (error) {
+                showError('Failed to refresh data. Please try again.');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('loading');
+            }
+        }
+
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const day = date.getDate();
+            const month = date.toLocaleString('en-GB', { month: 'short' });
+            return `${day} ${month}`;
+        }
+
+        function updateStatusBar() {
+            const statusBar = document.getElementById('statusBar');
+            let status = `Last updated: ${lastUpdated || 'Unknown'}`;
+
+            if (lastApiSync) {
+                status += ` • Last API sync: ${lastApiSync}`;
+            }
+
+            status += ` • Source: ${dataSource}`;
+
+            statusBar.textContent = status;
+        }
+
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').classList.add('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
