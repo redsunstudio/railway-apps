@@ -15,6 +15,7 @@ import json
 import logging
 import threading
 import time
+import sqlite3
 
 load_dotenv()
 
@@ -44,6 +45,85 @@ cache_lock = threading.Lock()
 
 # Last API sync tracking
 last_api_sync = None
+
+# Database configuration
+DB_PATH = os.getenv('DB_PATH', '/app/data/contacted.db')
+
+
+def init_db():
+    """Initialize SQLite database for tracking contacted members"""
+    # Ensure directory exists
+    db_dir = os.path.dirname(DB_PATH)
+    if db_dir and not os.path.exists(db_dir):
+        os.makedirs(db_dir, exist_ok=True)
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS contacted_members (
+            subscription_id INTEGER PRIMARY KEY,
+            contacted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            contacted_by TEXT
+        )
+    ''')
+    conn.commit()
+    conn.close()
+    logger.info(f"Database initialized at {DB_PATH}")
+
+
+def get_db():
+    """Get database connection"""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def is_member_contacted(subscription_id):
+    """Check if a member has been marked as contacted"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT 1 FROM contacted_members WHERE subscription_id = ?', (subscription_id,))
+    result = cursor.fetchone() is not None
+    conn.close()
+    return result
+
+
+def mark_member_contacted(subscription_id, contacted_by=None):
+    """Mark a member as contacted"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        INSERT OR REPLACE INTO contacted_members (subscription_id, contacted_at, contacted_by)
+        VALUES (?, CURRENT_TIMESTAMP, ?)
+    ''', (subscription_id, contacted_by))
+    conn.commit()
+    conn.close()
+
+
+def unmark_member_contacted(subscription_id):
+    """Remove contacted status from a member"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('DELETE FROM contacted_members WHERE subscription_id = ?', (subscription_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_all_contacted_ids():
+    """Get all contacted subscription IDs"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT subscription_id FROM contacted_members')
+    ids = {row[0] for row in cursor.fetchall()}
+    conn.close()
+    return ids
+
+
+# Initialize database on startup
+try:
+    init_db()
+except Exception as e:
+    logger.error(f"Failed to initialize database: {e}")
 
 
 def get_wc_auth():
@@ -101,6 +181,35 @@ def get_all_subscriptions():
             break
 
     return all_subscriptions
+
+
+def get_pending_cancellation_members():
+    """Get all members with pending-cancel status including contact details"""
+    subscriptions = get_all_subscriptions()
+    contacted_ids = get_all_contacted_ids()
+
+    pending_cancel_members = []
+    for sub in subscriptions:
+        if sub.get('status', '').lower() == 'pending-cancel':
+            billing = sub.get('billing', {})
+
+            member = {
+                'subscription_id': sub.get('id'),
+                'first_name': billing.get('first_name', ''),
+                'last_name': billing.get('last_name', ''),
+                'email': billing.get('email', ''),
+                'phone': billing.get('phone', ''),
+                'next_payment_date': sub.get('next_payment_date_gmt', ''),
+                'end_date': sub.get('end_date_gmt', ''),
+                'total': sub.get('total', '0'),
+                'contacted': sub.get('id') in contacted_ids
+            }
+            pending_cancel_members.append(member)
+
+    # Sort by name
+    pending_cancel_members.sort(key=lambda x: (x['first_name'], x['last_name']))
+
+    return pending_cancel_members
 
 
 def get_orders_for_period(start_date, end_date):
@@ -486,6 +595,76 @@ def api_refresh():
             'message': 'Cache cleared and data refreshed'
         })
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/pending-cancellations')
+def api_pending_cancellations():
+    """Get list of members with pending cancellation status"""
+    try:
+        members = get_pending_cancellation_members()
+        return jsonify({
+            'success': True,
+            'data': members,
+            'count': len(members),
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M')
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/pending-cancellations: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/member/contacted', methods=['POST'])
+def api_mark_contacted():
+    """Mark a member as contacted"""
+    try:
+        data = request.get_json()
+        subscription_id = data.get('subscription_id')
+        contacted = data.get('contacted', True)
+        contacted_by = data.get('contacted_by')
+
+        if not subscription_id:
+            return jsonify({
+                'success': False,
+                'error': 'subscription_id is required'
+            }), 400
+
+        if contacted:
+            mark_member_contacted(subscription_id, contacted_by)
+        else:
+            unmark_member_contacted(subscription_id)
+
+        return jsonify({
+            'success': True,
+            'subscription_id': subscription_id,
+            'contacted': contacted
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/member/contacted: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/member/contacted/<int:subscription_id>', methods=['GET'])
+def api_get_contacted_status(subscription_id):
+    """Get contacted status for a specific member"""
+    try:
+        contacted = is_member_contacted(subscription_id)
+        return jsonify({
+            'success': True,
+            'subscription_id': subscription_id,
+            'contacted': contacted
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/member/contacted/{subscription_id}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

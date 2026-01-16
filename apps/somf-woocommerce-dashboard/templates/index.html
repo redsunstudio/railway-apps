@@ -28,7 +28,7 @@
         /* Header with Logo */
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
 
         .logo {
@@ -41,6 +41,58 @@
             font-size: 1.8rem;
             font-weight: 600;
             color: #333;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            margin-bottom: 25px;
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 14px 20px;
+            background: white;
+            border: none;
+            font-size: 0.95rem;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab-btn:hover {
+            background: #f9f9f9;
+        }
+
+        .tab-btn.active {
+            color: #333;
+            border-bottom-color: #D4AF37;
+            background: #fafafa;
+        }
+
+        .tab-btn .badge {
+            display: inline-block;
+            background: #dc3545;
+            color: white;
+            font-size: 0.75rem;
+            padding: 2px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         /* KPI Cards */
@@ -134,6 +186,151 @@
             width: 100%;
         }
 
+        /* Pending Cancellations Table */
+        .members-section {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .members-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+            background: #fafafa;
+        }
+
+        .members-header h2 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .members-count {
+            font-size: 0.85rem;
+            color: #666;
+        }
+
+        .members-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .members-table th {
+            text-align: left;
+            padding: 12px 15px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+
+        .members-table td {
+            padding: 12px 15px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        .members-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .members-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .members-table tr.contacted {
+            background: #f0f9f0;
+            opacity: 0.7;
+        }
+
+        .members-table tr.contacted td {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .members-table tr.contacted .checkbox-cell {
+            text-decoration: none;
+        }
+
+        .member-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .member-email {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .member-email a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        .member-email a:hover {
+            text-decoration: underline;
+        }
+
+        .member-phone {
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        .member-phone a {
+            color: #333;
+            text-decoration: none;
+        }
+
+        .checkbox-cell {
+            width: 50px;
+            text-align: center;
+        }
+
+        .contact-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: #2e7d32;
+        }
+
+        .no-members {
+            padding: 40px 20px;
+            text-align: center;
+            color: #666;
+        }
+
+        /* Filter Options */
+        .filter-bar {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            padding: 15px 20px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filter-bar label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .filter-bar input[type="checkbox"] {
+            accent-color: #D4AF37;
+        }
+
         /* Refresh Button */
         .refresh-section {
             text-align: center;
@@ -222,7 +419,7 @@
         }
 
         .hidden {
-            display: none;
+            display: none !important;
         }
 
         /* Error State */
@@ -248,6 +445,22 @@
             .chart-container {
                 height: 180px;
             }
+
+            .members-table th,
+            .members-table td {
+                padding: 10px 12px;
+                font-size: 0.8rem;
+            }
+
+            .tab-btn {
+                padding: 12px 10px;
+                font-size: 0.85rem;
+            }
+
+            .tab-btn .badge {
+                font-size: 0.7rem;
+                padding: 2px 6px;
+            }
         }
     </style>
 </head>
@@ -267,18 +480,14 @@
                         <stop offset="100%" style="stop-color:#D4AF37"/>
                     </linearGradient>
                 </defs>
-                <!-- Left Branch -->
                 <path d="M30 80 Q20 60 25 40 Q30 50 35 45 Q25 55 30 70 Q35 60 40 55 Q30 65 32 75 Q38 65 45 60 Q35 70 35 78"
                       fill="url(#goldGradient)" stroke="#B8960C" stroke-width="0.5"/>
-                <!-- Right Branch -->
                 <path d="M70 80 Q80 60 75 40 Q70 50 65 45 Q75 55 70 70 Q65 60 60 55 Q70 65 68 75 Q62 65 55 60 Q65 70 65 78"
                       fill="url(#goldGradient)" stroke="#B8960C" stroke-width="0.5"/>
-                <!-- Leaves Left -->
                 <ellipse cx="22" cy="35" rx="6" ry="12" fill="url(#goldGradient)" transform="rotate(-30 22 35)"/>
                 <ellipse cx="28" cy="28" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(-15 28 28)"/>
                 <ellipse cx="38" cy="22" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(5 38 22)"/>
                 <ellipse cx="48" cy="18" rx="5" ry="9" fill="url(#goldGradient)" transform="rotate(20 48 18)"/>
-                <!-- Leaves Right -->
                 <ellipse cx="78" cy="35" rx="6" ry="12" fill="url(#goldGradient)" transform="rotate(30 78 35)"/>
                 <ellipse cx="72" cy="28" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(15 72 28)"/>
                 <ellipse cx="62" cy="22" rx="5" ry="10" fill="url(#goldGradient)" transform="rotate(-5 62 22)"/>
@@ -287,116 +496,163 @@
             <h1>SOMF KPI's</h1>
         </div>
 
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                Dashboard
+            </button>
+            <button class="tab-btn" data-tab="pending" onclick="switchTab('pending')">
+                Pending Cancellations
+                <span class="badge" id="pendingBadge">0</span>
+            </button>
+        </div>
+
         <div id="errorMessage" class="error-message hidden"></div>
 
-        <!-- KPI Cards -->
-        <div class="kpi-grid">
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Month To Date
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content active">
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Month To Date
+                    </div>
+                    <div class="kpi-value currency" id="monthlyRevenue">-</div>
                 </div>
-                <div class="kpi-value currency" id="monthlyRevenue">-</div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        Revenue Prior Month
+                    </div>
+                    <div class="kpi-value currency" id="priorMonthRevenue">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        Active Members
+                    </div>
+                    <div class="kpi-value" id="activeMembers">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Pending Cancellation
+                    </div>
+                    <div class="kpi-value" id="pendingCancellation">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Pending Payment
+                    </div>
+                    <div class="kpi-value" id="pendingPayment">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        On Hold
+                    </div>
+                    <div class="kpi-value" id="onHold">-</div>
+                </div>
             </div>
 
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    Revenue Prior Month
+            <!-- Active Members Trend Chart -->
+            <div class="chart-section">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        Active Members Trend
+                    </div>
+                    <select class="period-select" id="membersPeriod" onchange="updateMembersChart()">
+                        <option value="7">Last 7 days</option>
+                        <option value="14">Last 14 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="120">Last 120 days</option>
+                        <option value="150">Last 150 days</option>
+                    </select>
                 </div>
-                <div class="kpi-value currency" id="priorMonthRevenue">-</div>
+                <div class="chart-container">
+                    <canvas id="membersChart"></canvas>
+                </div>
             </div>
 
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    </svg>
-                    Active Members
+            <!-- Prior Month Revenue Trend Chart -->
+            <div class="chart-section">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Prior Month Revenue Trend
+                    </div>
+                    <select class="period-select" id="revenuePeriod" onchange="updateRevenueChart()">
+                        <option value="7">Last 7 days</option>
+                        <option value="14">Last 14 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                        <option value="90">Last 90 days</option>
+                        <option value="120">Last 120 days</option>
+                        <option value="150">Last 150 days</option>
+                    </select>
                 </div>
-                <div class="kpi-value" id="activeMembers">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Pending Cancellation
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
                 </div>
-                <div class="kpi-value" id="pendingCancellation">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Pending Payment
-                </div>
-                <div class="kpi-value" id="pendingPayment">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    On Hold
-                </div>
-                <div class="kpi-value" id="onHold">-</div>
             </div>
         </div>
 
-        <!-- Active Members Trend Chart -->
-        <div class="chart-section">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Active Members Trend
+        <!-- Pending Cancellations Tab -->
+        <div id="pendingTab" class="tab-content">
+            <div class="members-section">
+                <div class="members-header">
+                    <h2>Members Pending Cancellation</h2>
+                    <span class="members-count" id="membersCount">Loading...</span>
                 </div>
-                <select class="period-select" id="membersPeriod" onchange="updateMembersChart()">
-                    <option value="7">Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30" selected>Last 30 days</option>
-                    <option value="60">Last 60 days</option>
-                    <option value="90">Last 90 days</option>
-                    <option value="120">Last 120 days</option>
-                    <option value="150">Last 150 days</option>
-                </select>
-            </div>
-            <div class="chart-container">
-                <canvas id="membersChart"></canvas>
-            </div>
-        </div>
-
-        <!-- Prior Month Revenue Trend Chart -->
-        <div class="chart-section">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Prior Month Revenue Trend
+                <div class="filter-bar">
+                    <label>
+                        <input type="checkbox" id="hideContacted" onchange="filterMembers()">
+                        Hide contacted members
+                    </label>
                 </div>
-                <select class="period-select" id="revenuePeriod" onchange="updateRevenueChart()">
-                    <option value="7">Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30" selected>Last 30 days</option>
-                    <option value="60">Last 60 days</option>
-                    <option value="90">Last 90 days</option>
-                    <option value="120">Last 120 days</option>
-                    <option value="150">Last 150 days</option>
-                </select>
-            </div>
-            <div class="chart-container">
-                <canvas id="revenueChart"></canvas>
+                <div id="membersTableContainer">
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell">Contacted</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                            <tr>
+                                <td colspan="4" class="no-members">Loading members...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -431,6 +687,7 @@
         let lastUpdated = null;
         let lastApiSync = null;
         let dataSource = 'loading';
+        let pendingMembers = [];
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -441,8 +698,29 @@
             setInterval(loadAllData, 5 * 60 * 1000);
         });
 
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.tab === tabName) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            if (tabName === 'dashboard') {
+                document.getElementById('dashboardTab').classList.add('active');
+            } else if (tabName === 'pending') {
+                document.getElementById('pendingTab').classList.add('active');
+                loadPendingCancellations();
+            }
+        }
+
         function initCharts() {
-            // Members Chart
             const membersCtx = document.getElementById('membersChart').getContext('2d');
             membersChart = new Chart(membersCtx, {
                 type: 'line',
@@ -462,22 +740,14 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: {
-                            grid: { display: false }
-                        },
-                        y: {
-                            beginAtZero: false,
-                            grid: { color: '#eee' }
-                        }
+                        x: { grid: { display: false } },
+                        y: { beginAtZero: false, grid: { color: '#eee' } }
                     }
                 }
             });
 
-            // Revenue Chart
             const revenueCtx = document.getElementById('revenueChart').getContext('2d');
             revenueChart = new Chart(revenueCtx, {
                 type: 'line',
@@ -497,19 +767,13 @@
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false }
-                    },
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: {
-                            grid: { display: false }
-                        },
+                        x: { grid: { display: false } },
                         y: {
                             beginAtZero: false,
                             grid: { color: '#eee' },
-                            ticks: {
-                                callback: (value) => '£' + value.toLocaleString()
-                            }
+                            ticks: { callback: (value) => '£' + value.toLocaleString() }
                         }
                     }
                 }
@@ -521,7 +785,8 @@
                 await Promise.all([
                     loadMetrics(),
                     updateMembersChart(),
-                    updateRevenueChart()
+                    updateRevenueChart(),
+                    loadPendingCancellations()
                 ]);
             } catch (error) {
                 showError('Failed to load data. Please try again.');
@@ -560,6 +825,126 @@
             }
         }
 
+        async function loadPendingCancellations() {
+            try {
+                const response = await fetch('/api/pending-cancellations');
+                const result = await response.json();
+
+                if (result.success) {
+                    pendingMembers = result.data;
+                    updatePendingBadge(result.count);
+                    renderMembersTable();
+                }
+            } catch (error) {
+                console.error('Error loading pending cancellations:', error);
+            }
+        }
+
+        function updatePendingBadge(count) {
+            const badge = document.getElementById('pendingBadge');
+            const notContacted = pendingMembers.filter(m => !m.contacted).length;
+            badge.textContent = notContacted;
+            badge.style.display = notContacted > 0 ? 'inline-block' : 'none';
+        }
+
+        function renderMembersTable() {
+            const tbody = document.getElementById('membersTableBody');
+            const countEl = document.getElementById('membersCount');
+            const hideContacted = document.getElementById('hideContacted').checked;
+
+            let filteredMembers = pendingMembers;
+            if (hideContacted) {
+                filteredMembers = pendingMembers.filter(m => !m.contacted);
+            }
+
+            const notContactedCount = pendingMembers.filter(m => !m.contacted).length;
+            countEl.textContent = `${notContactedCount} not contacted / ${pendingMembers.length} total`;
+
+            if (filteredMembers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-members">No members pending cancellation</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredMembers.map(member => `
+                <tr class="${member.contacted ? 'contacted' : ''}" data-id="${member.subscription_id}">
+                    <td class="checkbox-cell">
+                        <input type="checkbox"
+                               class="contact-checkbox"
+                               ${member.contacted ? 'checked' : ''}
+                               onchange="toggleContacted(${member.subscription_id}, this.checked)"
+                               title="Mark as contacted">
+                    </td>
+                    <td>
+                        <div class="member-name">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</div>
+                    </td>
+                    <td class="member-email">
+                        <a href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a>
+                    </td>
+                    <td class="member-phone">
+                        ${member.phone ? `<a href="tel:${escapeHtml(member.phone)}">${escapeHtml(member.phone)}</a>` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterMembers() {
+            renderMembersTable();
+        }
+
+        async function toggleContacted(subscriptionId, contacted) {
+            try {
+                const response = await fetch('/api/member/contacted', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        contacted: contacted
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update local state
+                    const member = pendingMembers.find(m => m.subscription_id === subscriptionId);
+                    if (member) {
+                        member.contacted = contacted;
+                    }
+
+                    // Update UI
+                    const row = document.querySelector(`tr[data-id="${subscriptionId}"]`);
+                    if (row) {
+                        if (contacted) {
+                            row.classList.add('contacted');
+                        } else {
+                            row.classList.remove('contacted');
+                        }
+                    }
+
+                    updatePendingBadge();
+
+                    // If hiding contacted and just marked as contacted, re-render
+                    if (document.getElementById('hideContacted').checked && contacted) {
+                        renderMembersTable();
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating contacted status:', error);
+                // Revert checkbox
+                const checkbox = document.querySelector(`tr[data-id="${subscriptionId}"] .contact-checkbox`);
+                if (checkbox) {
+                    checkbox.checked = !contacted;
+                }
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
         async function updateMembersChart() {
             const days = document.getElementById('membersPeriod').value;
 
@@ -568,11 +953,8 @@
                 const result = await response.json();
 
                 if (result.success && result.data) {
-                    const labels = result.data.map(d => formatDate(d.date));
-                    const values = result.data.map(d => d.active_count);
-
-                    membersChart.data.labels = labels;
-                    membersChart.data.datasets[0].data = values;
+                    membersChart.data.labels = result.data.map(d => formatDate(d.date));
+                    membersChart.data.datasets[0].data = result.data.map(d => d.active_count);
                     membersChart.update();
                 }
             } catch (error) {
@@ -588,11 +970,8 @@
                 const result = await response.json();
 
                 if (result.success && result.data) {
-                    const labels = result.data.map(d => formatDate(d.date));
-                    const values = result.data.map(d => d.revenue);
-
-                    revenueChart.data.labels = labels;
-                    revenueChart.data.datasets[0].data = values;
+                    revenueChart.data.labels = result.data.map(d => formatDate(d.date));
+                    revenueChart.data.datasets[0].data = result.data.map(d => d.revenue);
                     revenueChart.update();
                 }
             } catch (error) {
@@ -606,10 +985,7 @@
             btn.classList.add('loading');
 
             try {
-                // Clear cache on server
                 await fetch('/api/refresh', { method: 'POST' });
-
-                // Reload all data
                 await loadAllData();
             } catch (error) {
                 showError('Failed to refresh data. Please try again.');
@@ -621,22 +997,14 @@
 
         function formatDate(dateStr) {
             const date = new Date(dateStr);
-            const day = date.getDate();
-            const month = date.toLocaleString('en-GB', { month: 'short' });
-            return `${day} ${month}`;
+            return `${date.getDate()} ${date.toLocaleString('en-GB', { month: 'short' })}`;
         }
 
         function updateStatusBar() {
-            const statusBar = document.getElementById('statusBar');
             let status = `Last updated: ${lastUpdated || 'Unknown'}`;
-
-            if (lastApiSync) {
-                status += ` • Last API sync: ${lastApiSync}`;
-            }
-
+            if (lastApiSync) status += ` • Last API sync: ${lastApiSync}`;
             status += ` • Source: ${dataSource}`;
-
-            statusBar.textContent = status;
+            document.getElementById('statusBar').textContent = status;
         }
 
         function showError(message) {
