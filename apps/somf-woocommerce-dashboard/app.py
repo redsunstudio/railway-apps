@@ -39,6 +39,7 @@ CACHE_DURATION = 300  # 5 minutes in seconds
 cache = {
     'metrics': {'data': None, 'timestamp': None},
     'subscriptions': {'data': None, 'timestamp': None},  # Cache all subscriptions
+    'orders': {},  # keyed by date range
     'pending_cancellations': {'data': None, 'timestamp': None},
     'pending_payments': {'data': None, 'timestamp': None},
     'historical_members': {},  # keyed by days
@@ -271,8 +272,8 @@ def get_pending_payment_members():
     return pending_payment_members
 
 
-def get_orders_for_period(start_date, end_date):
-    """Fetch orders within a date range"""
+def fetch_orders_for_period(start_date, end_date):
+    """Fetch orders within a date range from WooCommerce API"""
     all_orders = []
     page = 1
     per_page = 100
@@ -305,6 +306,32 @@ def get_orders_for_period(start_date, end_date):
     return all_orders
 
 
+def get_cached_orders(start_date, end_date):
+    """Get orders from cache or fetch fresh data"""
+    # Create a cache key based on date range (normalize to date only for better caching)
+    cache_key = f"{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}"
+
+    with cache_lock:
+        cached = cache['orders'].get(cache_key, {'data': None, 'timestamp': None})
+        now = datetime.now()
+
+        # Check if cache is valid
+        if cached['data'] is not None and cached['timestamp']:
+            age = (now - cached['timestamp']).total_seconds()
+            if age < CACHE_DURATION:
+                logger.info(f"Using cached orders for {cache_key}")
+                return cached['data']
+
+        # Fetch fresh data
+        logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
+        data = fetch_orders_for_period(start_date, end_date)
+        cache['orders'][cache_key] = {
+            'data': data,
+            'timestamp': now
+        }
+        return data
+
+
 def calculate_metrics():
     """Calculate all KPI metrics from WooCommerce data"""
     subscriptions = get_cached_subscriptions()
@@ -329,14 +356,14 @@ def calculate_metrics():
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     month_end = now
 
-    mtd_orders = get_orders_for_period(month_start, month_end)
+    mtd_orders = get_cached_orders(month_start, month_end)
     mtd_revenue = sum(float(order.get('total', 0)) for order in mtd_orders)
 
     # Calculate prior month revenue
     prior_month_start = (month_start - relativedelta(months=1))
     prior_month_end = month_start - timedelta(seconds=1)
 
-    prior_orders = get_orders_for_period(prior_month_start, prior_month_end)
+    prior_orders = get_cached_orders(prior_month_start, prior_month_end)
     prior_revenue = sum(float(order.get('total', 0)) for order in prior_orders)
 
     return {
@@ -442,8 +469,8 @@ def calculate_historical_revenue(days):
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days)
 
-    # Get all orders in the range
-    orders = get_orders_for_period(start_date, end_date)
+    # Get all orders in the range (cached)
+    orders = get_cached_orders(start_date, end_date)
 
     # Group by date
     daily_revenue = {}
@@ -643,6 +670,7 @@ def api_refresh():
         cache = {
             'metrics': {'data': None, 'timestamp': None},
             'subscriptions': {'data': None, 'timestamp': None},
+            'orders': {},  # Clear orders cache
             'pending_cancellations': {'data': None, 'timestamp': None},
             'pending_payments': {'data': None, 'timestamp': None},
             'historical_members': {},
@@ -652,7 +680,7 @@ def api_refresh():
     # Trigger fresh fetch of subscriptions first, then metrics
     try:
         get_cached_subscriptions()  # This will cache subscriptions for other calls
-        get_cached_metrics()
+        get_cached_metrics()  # This will also cache orders as a side effect
         return jsonify({
             'success': True,
             'message': 'Cache cleared and data refreshed'
