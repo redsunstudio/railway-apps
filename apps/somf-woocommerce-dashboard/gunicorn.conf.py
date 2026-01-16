@@ -6,7 +6,8 @@ import threading
 bind = f"0.0.0.0:{os.getenv('PORT', '5000')}"
 workers = 2
 threads = 4
-timeout = 120
+timeout = 300  # 5 minutes to handle slow WooCommerce API
+graceful_timeout = 300
 
 # Don't use preload since each worker needs its own cache warming
 preload_app = False
