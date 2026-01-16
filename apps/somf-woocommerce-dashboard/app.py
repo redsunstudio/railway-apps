@@ -193,25 +193,27 @@ def fetch_all_subscriptions():
 
 def get_cached_subscriptions():
     """Get subscriptions from cache or fetch fresh data"""
+    # Check cache without long lock hold
     with cache_lock:
         cached = cache['subscriptions']
         now = datetime.now()
-
-        # Check if cache is valid
         if cached['data'] and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
                 logger.info("Using cached subscriptions")
                 return cached['data']
 
-        # Fetch fresh data
-        logger.info("Fetching fresh subscriptions from WooCommerce")
-        data = fetch_all_subscriptions()
+    # Fetch outside lock to avoid blocking other requests
+    logger.info("Fetching fresh subscriptions from WooCommerce")
+    data = fetch_all_subscriptions()
+
+    # Update cache (brief lock)
+    with cache_lock:
         cache['subscriptions'] = {
             'data': data,
-            'timestamp': now
+            'timestamp': datetime.now()
         }
-        return data
+    return data
 
 
 def get_pending_cancellation_members():
@@ -311,25 +313,27 @@ def get_cached_orders(start_date, end_date):
     # Create a cache key based on date range (normalize to date only for better caching)
     cache_key = f"{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}"
 
+    # Check cache without long lock hold
     with cache_lock:
         cached = cache['orders'].get(cache_key, {'data': None, 'timestamp': None})
         now = datetime.now()
-
-        # Check if cache is valid
         if cached['data'] is not None and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
                 logger.info(f"Using cached orders for {cache_key}")
                 return cached['data']
 
-        # Fetch fresh data
-        logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
-        data = fetch_orders_for_period(start_date, end_date)
+    # Fetch outside lock to avoid blocking other requests
+    logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
+    data = fetch_orders_for_period(start_date, end_date)
+
+    # Update cache (brief lock)
+    with cache_lock:
         cache['orders'][cache_key] = {
             'data': data,
-            'timestamp': now
+            'timestamp': datetime.now()
         }
-        return data
+    return data
 
 
 def calculate_metrics():
@@ -379,30 +383,31 @@ def calculate_metrics():
 
 def get_cached_metrics():
     """Get metrics from cache or fetch fresh data"""
+    # Check cache without long lock hold
     with cache_lock:
         cached = cache['metrics']
         now = datetime.now()
-
-        # Check if cache is valid
         if cached['data'] and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
                 return cached['data'], 'cache'
+        stale_data = cached.get('data')
 
-        # Fetch fresh data
-        try:
-            data = calculate_metrics()
+    # Fetch outside lock to avoid blocking other requests
+    try:
+        data = calculate_metrics()
+        with cache_lock:
             cache['metrics'] = {
                 'data': data,
-                'timestamp': now
+                'timestamp': datetime.now()
             }
-            return data, 'api'
-        except Exception as e:
-            logger.error(f"Error calculating metrics: {e}")
-            # Return stale cache if available
-            if cached['data']:
-                return cached['data'], 'stale_cache'
-            raise
+        return data, 'api'
+    except Exception as e:
+        logger.error(f"Error calculating metrics: {e}")
+        # Return stale cache if available
+        if stale_data:
+            return stale_data, 'stale_cache'
+        raise
 
 
 def calculate_historical_members(days):
