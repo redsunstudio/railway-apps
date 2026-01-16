@@ -822,6 +822,74 @@ def api_refresh():
     })
 
 
+@app.route('/api/refresh-sync', methods=['POST'])
+def api_refresh_sync():
+    """Force refresh all cached data synchronously (for debugging)"""
+    global cache
+    import time
+    start = time.time()
+
+    # Clear memory cache
+    with cache_lock:
+        cache = {
+            'metrics': {'data': None, 'timestamp': None},
+            'subscriptions': {'data': None, 'timestamp': None},
+            'orders': {},
+            'pending_cancellations': {'data': None, 'timestamp': None},
+            'pending_payments': {'data': None, 'timestamp': None},
+            'historical_members': {},
+            'historical_revenue': {}
+        }
+
+    try:
+        # Fetch subscriptions directly (not cached)
+        logger.info("SYNC REFRESH: Fetching subscriptions...")
+        subs_start = time.time()
+        subs = fetch_all_subscriptions()
+        subs_time = time.time() - subs_start
+        logger.info(f"SYNC REFRESH: Got {len(subs)} subscriptions in {subs_time}s")
+
+        # Update cache
+        with cache_lock:
+            cache['subscriptions'] = {
+                'data': subs,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('subscriptions', subs)
+
+        # Calculate metrics
+        logger.info("SYNC REFRESH: Calculating metrics...")
+        metrics_start = time.time()
+        metrics = calculate_metrics()
+        metrics_time = time.time() - metrics_start
+        logger.info(f"SYNC REFRESH: Calculated metrics in {metrics_time}s")
+
+        with cache_lock:
+            cache['metrics'] = {
+                'data': metrics,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('metrics', metrics)
+
+        total_time = time.time() - start
+        return jsonify({
+            'success': True,
+            'subscriptions_count': len(subs),
+            'subscriptions_time': round(subs_time, 2),
+            'metrics': metrics,
+            'metrics_time': round(metrics_time, 2),
+            'total_time': round(total_time, 2)
+        })
+    except Exception as e:
+        logger.error(f"SYNC REFRESH failed: {e}")
+        import traceback
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
 @app.route('/api/pending-cancellations')
 def api_pending_cancellations():
     """Get list of members with pending cancellation status"""
