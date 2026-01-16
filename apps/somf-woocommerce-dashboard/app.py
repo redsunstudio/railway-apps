@@ -1,6 +1,7 @@
 """
 SOMF WooCommerce Dashboard - Backend API
 Connects to WooCommerce REST API to fetch subscription and revenue data
+Version: 1.1 - Performance optimized with caching
 """
 
 from flask import Flask, jsonify, request, render_template
