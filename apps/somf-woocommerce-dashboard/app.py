@@ -171,50 +171,14 @@ def load_cache_from_db(cache_key):
         return None, None
 
 
-def load_all_cache_from_db():
-    """Load all cached data from SQLite into memory on startup"""
-    global cache, last_api_sync
-
-    # Load subscriptions
-    subs_data, subs_time = load_cache_from_db('subscriptions')
-    if subs_data:
-        with cache_lock:
-            cache['subscriptions'] = {
-                'data': subs_data,
-                'timestamp': datetime.now()  # Treat as fresh for initial display
-            }
-        logger.info(f"Loaded {len(subs_data)} subscriptions from persistent cache")
-
-    # Load metrics
-    metrics_data, metrics_time = load_cache_from_db('metrics')
-    if metrics_data:
-        with cache_lock:
-            cache['metrics'] = {
-                'data': metrics_data,
-                'timestamp': datetime.now()
-            }
-        logger.info("Loaded metrics from persistent cache")
-
-    # Load orders
-    for key_suffix in ['mtd_orders', 'prior_month_orders']:
-        orders_data, orders_time = load_cache_from_db(key_suffix)
-        if orders_data:
-            # Reconstruct the cache key format
-            with cache_lock:
-                cache['orders'][key_suffix] = {
-                    'data': orders_data,
-                    'timestamp': datetime.now()
-                }
-            logger.info(f"Loaded {key_suffix} from persistent cache")
-
-
 # Initialize database on startup
 try:
     init_db()
-    # Load any previously cached data from SQLite for instant startup
-    load_all_cache_from_db()
 except Exception as e:
     logger.error(f"Failed to initialize database: {e}")
+
+# Flag to track if we've loaded from DB
+_loaded_from_db = False
 
 
 # Background refresh flag
@@ -280,17 +244,28 @@ def fetch_all_subscriptions():
 
 def get_cached_subscriptions():
     """Get subscriptions from cache or fetch fresh data"""
-    # Check cache without long lock hold
+    # Check memory cache first
     with cache_lock:
         cached = cache['subscriptions']
         now = datetime.now()
         if cached['data'] and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
-                logger.info("Using cached subscriptions")
+                logger.info("Using memory cached subscriptions")
                 return cached['data']
 
-    # Fetch outside lock to avoid blocking other requests
+    # Try loading from SQLite (persistent cache)
+    db_data, db_time = load_cache_from_db('subscriptions')
+    if db_data:
+        logger.info(f"Using SQLite cached subscriptions ({len(db_data)} items)")
+        with cache_lock:
+            cache['subscriptions'] = {
+                'data': db_data,
+                'timestamp': datetime.now()
+            }
+        return db_data
+
+    # Fetch from WooCommerce API (slowest option)
     logger.info("Fetching fresh subscriptions from WooCommerce")
     data = fetch_all_subscriptions()
 
@@ -410,16 +385,27 @@ def get_cached_orders(start_date, end_date):
     is_mtd = start_date.date() == month_start.date()
     db_key = 'mtd_orders' if is_mtd else 'prior_month_orders'
 
-    # Check cache without long lock hold
+    # Check memory cache first
     with cache_lock:
         cached = cache['orders'].get(cache_key, {'data': None, 'timestamp': None})
         if cached['data'] is not None and cached['timestamp']:
             age = (now - cached['timestamp']).total_seconds()
             if age < CACHE_DURATION:
-                logger.info(f"Using cached orders for {cache_key}")
+                logger.info(f"Using memory cached orders for {cache_key}")
                 return cached['data']
 
-    # Fetch outside lock to avoid blocking other requests
+    # Try loading from SQLite (persistent cache)
+    db_data, db_time = load_cache_from_db(db_key)
+    if db_data:
+        logger.info(f"Using SQLite cached orders for {db_key}")
+        with cache_lock:
+            cache['orders'][cache_key] = {
+                'data': db_data,
+                'timestamp': datetime.now()
+            }
+        return db_data
+
+    # Fetch from WooCommerce API (slowest option)
     logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
     data = fetch_orders_for_period(start_date, end_date)
 
@@ -483,7 +469,7 @@ def calculate_metrics():
 
 def get_cached_metrics():
     """Get metrics from cache or fetch fresh data"""
-    # Check cache without long lock hold
+    # Check memory cache first
     with cache_lock:
         cached = cache['metrics']
         now = datetime.now()
@@ -493,7 +479,18 @@ def get_cached_metrics():
                 return cached['data'], 'cache'
         stale_data = cached.get('data')
 
-    # Fetch outside lock to avoid blocking other requests
+    # Try loading from SQLite (persistent cache)
+    db_data, db_time = load_cache_from_db('metrics')
+    if db_data:
+        logger.info("Using SQLite cached metrics")
+        with cache_lock:
+            cache['metrics'] = {
+                'data': db_data,
+                'timestamp': datetime.now()
+            }
+        return db_data, 'sqlite_cache'
+
+    # Fetch from WooCommerce API (slowest option)
     try:
         data = calculate_metrics()
         with cache_lock:
