@@ -38,6 +38,9 @@ WC_CONSUMER_SECRET = os.getenv('WC_CONSUMER_SECRET')
 CACHE_DURATION = 300  # 5 minutes in seconds
 cache = {
     'metrics': {'data': None, 'timestamp': None},
+    'subscriptions': {'data': None, 'timestamp': None},  # Cache all subscriptions
+    'pending_cancellations': {'data': None, 'timestamp': None},
+    'pending_payments': {'data': None, 'timestamp': None},
     'historical_members': {},  # keyed by days
     'historical_revenue': {}   # keyed by days
 }
@@ -151,8 +154,8 @@ def wc_api_request(endpoint, params=None):
         raise
 
 
-def get_all_subscriptions():
-    """Fetch all subscriptions with pagination"""
+def fetch_all_subscriptions():
+    """Fetch all subscriptions from WooCommerce API with pagination"""
     all_subscriptions = []
     page = 1
     per_page = 100
@@ -183,9 +186,32 @@ def get_all_subscriptions():
     return all_subscriptions
 
 
+def get_cached_subscriptions():
+    """Get subscriptions from cache or fetch fresh data"""
+    with cache_lock:
+        cached = cache['subscriptions']
+        now = datetime.now()
+
+        # Check if cache is valid
+        if cached['data'] and cached['timestamp']:
+            age = (now - cached['timestamp']).total_seconds()
+            if age < CACHE_DURATION:
+                logger.info("Using cached subscriptions")
+                return cached['data']
+
+        # Fetch fresh data
+        logger.info("Fetching fresh subscriptions from WooCommerce")
+        data = fetch_all_subscriptions()
+        cache['subscriptions'] = {
+            'data': data,
+            'timestamp': now
+        }
+        return data
+
+
 def get_pending_cancellation_members():
     """Get all members with pending-cancel status including contact details"""
-    subscriptions = get_all_subscriptions()
+    subscriptions = get_cached_subscriptions()
     contacted_ids = get_all_contacted_ids()
 
     pending_cancel_members = []
@@ -214,7 +240,7 @@ def get_pending_cancellation_members():
 
 def get_pending_payment_members():
     """Get all members with pending payment status including contact details"""
-    subscriptions = get_all_subscriptions()
+    subscriptions = get_cached_subscriptions()
     contacted_ids = get_all_contacted_ids()
 
     pending_payment_members = []
@@ -277,7 +303,7 @@ def get_orders_for_period(start_date, end_date):
 
 def calculate_metrics():
     """Calculate all KPI metrics from WooCommerce data"""
-    subscriptions = get_all_subscriptions()
+    subscriptions = get_cached_subscriptions()
 
     # Count subscriptions by status
     status_counts = {
@@ -352,7 +378,7 @@ def calculate_historical_members(days):
     """Calculate historical active member counts"""
     # This would ideally use WooCommerce subscription history
     # For now, we'll fetch current data and simulate historical trend
-    subscriptions = get_all_subscriptions()
+    subscriptions = get_cached_subscriptions()
     current_active = sum(1 for s in subscriptions if s.get('status') == 'active')
 
     # Get subscription dates to build historical data
@@ -612,12 +638,16 @@ def api_refresh():
     with cache_lock:
         cache = {
             'metrics': {'data': None, 'timestamp': None},
+            'subscriptions': {'data': None, 'timestamp': None},
+            'pending_cancellations': {'data': None, 'timestamp': None},
+            'pending_payments': {'data': None, 'timestamp': None},
             'historical_members': {},
             'historical_revenue': {}
         }
 
-    # Trigger fresh fetch
+    # Trigger fresh fetch of subscriptions first, then metrics
     try:
+        get_cached_subscriptions()  # This will cache subscriptions for other calls
         get_cached_metrics()
         return jsonify({
             'success': True,
