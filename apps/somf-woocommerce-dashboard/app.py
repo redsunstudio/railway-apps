@@ -212,6 +212,35 @@ def get_pending_cancellation_members():
     return pending_cancel_members
 
 
+def get_pending_payment_members():
+    """Get all members with pending payment status including contact details"""
+    subscriptions = get_all_subscriptions()
+    contacted_ids = get_all_contacted_ids()
+
+    pending_payment_members = []
+    for sub in subscriptions:
+        if sub.get('status', '').lower() == 'pending':
+            billing = sub.get('billing', {})
+
+            member = {
+                'subscription_id': sub.get('id'),
+                'first_name': billing.get('first_name', ''),
+                'last_name': billing.get('last_name', ''),
+                'email': billing.get('email', ''),
+                'phone': billing.get('phone', ''),
+                'next_payment_date': sub.get('next_payment_date_gmt', ''),
+                'end_date': sub.get('end_date_gmt', ''),
+                'total': sub.get('total', '0'),
+                'contacted': sub.get('id') in contacted_ids
+            }
+            pending_payment_members.append(member)
+
+    # Sort by name
+    pending_payment_members.sort(key=lambda x: (x['first_name'], x['last_name']))
+
+    return pending_payment_members
+
+
 def get_orders_for_period(start_date, end_date):
     """Fetch orders within a date range"""
     all_orders = []
@@ -614,6 +643,25 @@ def api_pending_cancellations():
         })
     except Exception as e:
         logger.error(f"Error in /api/pending-cancellations: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/pending-payments')
+def api_pending_payments():
+    """Get list of members with pending payment status"""
+    try:
+        members = get_pending_payment_members()
+        return jsonify({
+            'success': True,
+            'data': members,
+            'count': len(members),
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M')
+        })
+    except Exception as e:
+        logger.error(f"Error in /api/pending-payments: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

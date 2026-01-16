@@ -505,6 +505,10 @@
                 Pending Cancellations
                 <span class="badge" id="pendingBadge">0</span>
             </button>
+            <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">
+                Pending Payments
+                <span class="badge" id="paymentsBadge">0</span>
+            </button>
         </div>
 
         <div id="errorMessage" class="error-message hidden"></div>
@@ -656,6 +660,39 @@
             </div>
         </div>
 
+        <!-- Pending Payments Tab -->
+        <div id="paymentsTab" class="tab-content">
+            <div class="members-section">
+                <div class="members-header">
+                    <h2>Members with Pending Payments</h2>
+                    <span class="members-count" id="paymentsCount">Loading...</span>
+                </div>
+                <div class="filter-bar">
+                    <label>
+                        <input type="checkbox" id="hideContactedPayments" onchange="filterPaymentMembers()">
+                        Hide contacted members
+                    </label>
+                </div>
+                <div id="paymentsTableContainer">
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell">Contacted</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentsTableBody">
+                            <tr>
+                                <td colspan="4" class="no-members">Loading members...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- Refresh Button -->
         <div class="refresh-section">
             <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
@@ -688,6 +725,7 @@
         let lastApiSync = null;
         let dataSource = 'loading';
         let pendingMembers = [];
+        let pendingPaymentMembers = [];
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -717,6 +755,9 @@
             } else if (tabName === 'pending') {
                 document.getElementById('pendingTab').classList.add('active');
                 loadPendingCancellations();
+            } else if (tabName === 'payments') {
+                document.getElementById('paymentsTab').classList.add('active');
+                loadPendingPayments();
             }
         }
 
@@ -786,7 +827,8 @@
                     loadMetrics(),
                     updateMembersChart(),
                     updateRevenueChart(),
-                    loadPendingCancellations()
+                    loadPendingCancellations(),
+                    loadPendingPayments()
                 ]);
             } catch (error) {
                 showError('Failed to load data. Please try again.');
@@ -889,6 +931,119 @@
 
         function filterMembers() {
             renderMembersTable();
+        }
+
+        async function loadPendingPayments() {
+            try {
+                const response = await fetch('/api/pending-payments');
+                const result = await response.json();
+
+                if (result.success) {
+                    pendingPaymentMembers = result.data;
+                    updatePaymentsBadge(result.count);
+                    renderPaymentsTable();
+                }
+            } catch (error) {
+                console.error('Error loading pending payments:', error);
+            }
+        }
+
+        function updatePaymentsBadge(count) {
+            const badge = document.getElementById('paymentsBadge');
+            const notContacted = pendingPaymentMembers.filter(m => !m.contacted).length;
+            badge.textContent = notContacted;
+            badge.style.display = notContacted > 0 ? 'inline-block' : 'none';
+        }
+
+        function renderPaymentsTable() {
+            const tbody = document.getElementById('paymentsTableBody');
+            const countEl = document.getElementById('paymentsCount');
+            const hideContacted = document.getElementById('hideContactedPayments').checked;
+
+            let filteredMembers = pendingPaymentMembers;
+            if (hideContacted) {
+                filteredMembers = pendingPaymentMembers.filter(m => !m.contacted);
+            }
+
+            const notContactedCount = pendingPaymentMembers.filter(m => !m.contacted).length;
+            countEl.textContent = `${notContactedCount} not contacted / ${pendingPaymentMembers.length} total`;
+
+            if (filteredMembers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-members">No members with pending payments</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredMembers.map(member => `
+                <tr class="${member.contacted ? 'contacted' : ''}" data-id="${member.subscription_id}" data-type="payment">
+                    <td class="checkbox-cell">
+                        <input type="checkbox"
+                               class="contact-checkbox"
+                               ${member.contacted ? 'checked' : ''}
+                               onchange="toggleContactedPayment(${member.subscription_id}, this.checked)"
+                               title="Mark as contacted">
+                    </td>
+                    <td>
+                        <div class="member-name">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</div>
+                    </td>
+                    <td class="member-email">
+                        <a href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a>
+                    </td>
+                    <td class="member-phone">
+                        ${member.phone ? `<a href="tel:${escapeHtml(member.phone)}">${escapeHtml(member.phone)}</a>` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterPaymentMembers() {
+            renderPaymentsTable();
+        }
+
+        async function toggleContactedPayment(subscriptionId, contacted) {
+            try {
+                const response = await fetch('/api/member/contacted', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        contacted: contacted
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    // Update local state
+                    const member = pendingPaymentMembers.find(m => m.subscription_id === subscriptionId);
+                    if (member) {
+                        member.contacted = contacted;
+                    }
+
+                    // Update UI
+                    const row = document.querySelector(`tr[data-id="${subscriptionId}"][data-type="payment"]`);
+                    if (row) {
+                        if (contacted) {
+                            row.classList.add('contacted');
+                        } else {
+                            row.classList.remove('contacted');
+                        }
+                    }
+
+                    updatePaymentsBadge();
+
+                    // If hiding contacted and just marked as contacted, re-render
+                    if (document.getElementById('hideContactedPayments').checked && contacted) {
+                        renderPaymentsTable();
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating contacted status:', error);
+                // Revert checkbox
+                const checkbox = document.querySelector(`tr[data-id="${subscriptionId}"][data-type="payment"] .contact-checkbox`);
+                if (checkbox) {
+                    checkbox.checked = !contacted;
+                }
+            }
         }
 
         async function toggleContacted(subscriptionId, contacted) {
