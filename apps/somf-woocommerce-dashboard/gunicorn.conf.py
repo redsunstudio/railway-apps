@@ -15,7 +15,8 @@ preload_app = False
 def post_worker_init(worker):
     """Called just after a worker has been initialized."""
     worker.log.info(f"Worker {worker.pid} initialized")
-    # Note: Cache warming disabled for debugging - will warm on first request
+    # Cache warming removed - the first request will warm the cache.
+    # Background warming was causing threading conflicts with request handling.
 
 def on_starting(server):
     """Called just before the master process is initialized."""
