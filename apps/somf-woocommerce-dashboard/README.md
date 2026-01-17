@@ -78,3 +78,4 @@ python app.py
 ```
 
 Visit `http://localhost:5000` to see the dashboard.
+# Deployment trigger: Sat Jan 17 08:49:31 UTC 2026
