@@ -1,7 +1,7 @@
 """
 SOMF WooCommerce Dashboard - Backend API
 Connects to WooCommerce REST API to fetch subscription and revenue data
-Version: 1.1 - Performance optimized with caching
+Version: 1.2 - Instant loading with APScheduler background refresh
 """
 
 from flask import Flask, jsonify, request, render_template
@@ -17,6 +17,11 @@ import logging
 import threading
 import time
 import sqlite3
+import atexit
+
+# APScheduler for background refresh
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
 
 load_dotenv()
 
@@ -184,6 +189,10 @@ _loaded_from_db = False
 # Background refresh flag
 _refresh_in_progress = False
 
+# APScheduler instance
+scheduler = BackgroundScheduler(daemon=True)
+_scheduler_started = False
+
 
 def get_wc_auth():
     """Get WooCommerce API authentication"""
@@ -242,17 +251,19 @@ def fetch_all_subscriptions():
     return all_subscriptions
 
 
-def get_cached_subscriptions():
-    """Get subscriptions from cache or fetch fresh data"""
+def get_cached_subscriptions(allow_api_fetch=False):
+    """Get subscriptions from cache - NEVER blocks waiting for API.
+
+    This function always returns instantly from cache.
+    If no cache exists, returns empty list and triggers background refresh.
+    Set allow_api_fetch=True only for background refresh operations.
+    """
     # Check memory cache first
     with cache_lock:
         cached = cache['subscriptions']
-        now = datetime.now()
-        if cached['data'] and cached['timestamp']:
-            age = (now - cached['timestamp']).total_seconds()
-            if age < CACHE_DURATION:
-                logger.info("Using memory cached subscriptions")
-                return cached['data']
+        if cached['data'] is not None:
+            logger.info(f"Using memory cached subscriptions ({len(cached['data'])} items)")
+            return cached['data']
 
     # Try loading from SQLite (persistent cache)
     db_data, db_time = load_cache_from_db('subscriptions')
@@ -265,21 +276,27 @@ def get_cached_subscriptions():
             }
         return db_data
 
-    # Fetch from WooCommerce API (slowest option)
-    logger.info("Fetching fresh subscriptions from WooCommerce")
-    data = fetch_all_subscriptions()
+    # No cache available - either return empty or fetch if allowed
+    if allow_api_fetch:
+        # Only used by background refresh - OK to block here
+        logger.info("Background refresh: Fetching fresh subscriptions from WooCommerce")
+        data = fetch_all_subscriptions()
 
-    # Update memory cache (brief lock)
-    with cache_lock:
-        cache['subscriptions'] = {
-            'data': data,
-            'timestamp': datetime.now()
-        }
+        # Update memory cache
+        with cache_lock:
+            cache['subscriptions'] = {
+                'data': data,
+                'timestamp': datetime.now()
+            }
 
-    # Persist to SQLite for fast startup next time
-    save_cache_to_db('subscriptions', data)
-
-    return data
+        # Persist to SQLite
+        save_cache_to_db('subscriptions', data)
+        return data
+    else:
+        # User-facing request - return empty and trigger background refresh
+        logger.warning("No cached subscriptions available - returning empty, triggering background refresh")
+        start_background_refresh()
+        return []
 
 
 def get_pending_cancellation_members():
@@ -374,8 +391,13 @@ def fetch_orders_for_period(start_date, end_date):
     return all_orders
 
 
-def get_cached_orders(start_date, end_date):
-    """Get orders from cache or fetch fresh data"""
+def get_cached_orders(start_date, end_date, allow_api_fetch=False):
+    """Get orders from cache - NEVER blocks waiting for API.
+
+    This function always returns instantly from cache.
+    If no cache exists, returns empty list.
+    Set allow_api_fetch=True only for background refresh operations.
+    """
     # Create a cache key based on date range (normalize to date only for better caching)
     cache_key = f"{start_date.strftime('%Y-%m-%d')}_{end_date.strftime('%Y-%m-%d')}"
 
@@ -388,11 +410,9 @@ def get_cached_orders(start_date, end_date):
     # Check memory cache first
     with cache_lock:
         cached = cache['orders'].get(cache_key, {'data': None, 'timestamp': None})
-        if cached['data'] is not None and cached['timestamp']:
-            age = (now - cached['timestamp']).total_seconds()
-            if age < CACHE_DURATION:
-                logger.info(f"Using memory cached orders for {cache_key}")
-                return cached['data']
+        if cached['data'] is not None:
+            logger.info(f"Using memory cached orders for {cache_key}")
+            return cached['data']
 
     # Try loading from SQLite (persistent cache)
     db_data, db_time = load_cache_from_db(db_key)
@@ -405,21 +425,26 @@ def get_cached_orders(start_date, end_date):
             }
         return db_data
 
-    # Fetch from WooCommerce API (slowest option)
-    logger.info(f"Fetching fresh orders for {cache_key} from WooCommerce")
-    data = fetch_orders_for_period(start_date, end_date)
+    # No cache available - either return empty or fetch if allowed
+    if allow_api_fetch:
+        # Only used by background refresh - OK to block here
+        logger.info(f"Background refresh: Fetching orders for {cache_key} from WooCommerce")
+        data = fetch_orders_for_period(start_date, end_date)
 
-    # Update memory cache (brief lock)
-    with cache_lock:
-        cache['orders'][cache_key] = {
-            'data': data,
-            'timestamp': datetime.now()
-        }
+        # Update memory cache
+        with cache_lock:
+            cache['orders'][cache_key] = {
+                'data': data,
+                'timestamp': datetime.now()
+            }
 
-    # Persist to SQLite for fast startup next time
-    save_cache_to_db(db_key, data)
-
-    return data
+        # Persist to SQLite
+        save_cache_to_db(db_key, data)
+        return data
+    else:
+        # User-facing request - return empty
+        logger.warning(f"No cached orders for {cache_key} - returning empty")
+        return []
 
 
 def calculate_metrics():
@@ -468,16 +493,17 @@ def calculate_metrics():
 
 
 def get_cached_metrics():
-    """Get metrics from cache or fetch fresh data"""
+    """Get metrics from cache - NEVER blocks waiting for API.
+
+    This function always returns instantly from cache.
+    If no cache exists, returns placeholder data and triggers background refresh.
+    """
     # Check memory cache first
     with cache_lock:
         cached = cache['metrics']
-        now = datetime.now()
-        if cached['data'] and cached['timestamp']:
-            age = (now - cached['timestamp']).total_seconds()
-            if age < CACHE_DURATION:
-                return cached['data'], 'cache'
-        stale_data = cached.get('data')
+        if cached['data']:
+            logger.info("Using memory cached metrics")
+            return cached['data'], 'cache'
 
     # Try loading from SQLite (persistent cache)
     db_data, db_time = load_cache_from_db('metrics')
@@ -490,23 +516,22 @@ def get_cached_metrics():
             }
         return db_data, 'sqlite_cache'
 
-    # Fetch from WooCommerce API (slowest option)
-    try:
-        data = calculate_metrics()
-        with cache_lock:
-            cache['metrics'] = {
-                'data': data,
-                'timestamp': datetime.now()
-            }
-        # Persist to SQLite for fast startup next time
-        save_cache_to_db('metrics', data)
-        return data, 'api'
-    except Exception as e:
-        logger.error(f"Error calculating metrics: {e}")
-        # Return stale cache if available
-        if stale_data:
-            return stale_data, 'stale_cache'
-        raise
+    # No cache available - return placeholder and trigger background refresh
+    logger.warning("No cached metrics available - returning placeholder, triggering background refresh")
+    start_background_refresh()
+
+    # Return placeholder data so dashboard still loads
+    placeholder = {
+        'active': 0,
+        'on-hold': 0,
+        'pending': 0,
+        'pending-cancel': 0,
+        'monthly_revenue': '£0.00',
+        'prior_month_revenue': '£0.00',
+        'last_api_connection': None,
+        'loading': True  # Flag for frontend to show loading state
+    }
+    return placeholder, 'loading'
 
 
 def calculate_historical_members(days):
@@ -703,6 +728,29 @@ def health():
     })
 
 
+@app.route('/api/cache-status')
+def api_cache_status():
+    """Get current cache status - useful for frontend to show data freshness"""
+    with cache_lock:
+        subs_cached = cache['subscriptions']['data'] is not None
+        subs_count = len(cache['subscriptions']['data']) if subs_cached else 0
+        subs_time = cache['subscriptions']['timestamp']
+
+        metrics_cached = cache['metrics']['data'] is not None
+        metrics_time = cache['metrics']['timestamp']
+
+    return jsonify({
+        'subscriptions_cached': subs_cached,
+        'subscriptions_count': subs_count,
+        'subscriptions_updated': subs_time.isoformat() if subs_time else None,
+        'metrics_cached': metrics_cached,
+        'metrics_updated': metrics_time.isoformat() if metrics_time else None,
+        'last_api_sync': last_api_sync.isoformat() if last_api_sync else None,
+        'refresh_in_progress': _refresh_in_progress,
+        'scheduler_running': _scheduler_started
+    })
+
+
 @app.route('/api/metrics')
 def api_metrics():
     """Get current KPI metrics"""
@@ -767,39 +815,106 @@ def api_historical_revenue():
 
 
 def background_refresh():
-    """Refresh cache in background without blocking requests"""
-    global _refresh_in_progress
+    """Refresh cache in background without blocking requests.
+
+    This is the main hourly job that fetches fresh data from WooCommerce API.
+    """
+    global _refresh_in_progress, last_api_sync
     if _refresh_in_progress:
         logger.info("Background refresh already in progress, skipping")
         return
 
     _refresh_in_progress = True
-    logger.info("Starting background cache refresh...")
+    start_time = time.time()
+    logger.info("=== Starting scheduled background cache refresh ===")
 
     try:
-        # Fetch fresh data (this will update both memory cache and SQLite)
-        fetch_all_subscriptions_fresh = fetch_all_subscriptions()
+        # 1. Fetch fresh subscriptions from WooCommerce API
+        logger.info("Background refresh: Fetching subscriptions...")
+        subs_start = time.time()
+        fresh_subscriptions = fetch_all_subscriptions()
+        subs_time = time.time() - subs_start
+
         with cache_lock:
             cache['subscriptions'] = {
-                'data': fetch_all_subscriptions_fresh,
+                'data': fresh_subscriptions,
                 'timestamp': datetime.now()
             }
-        save_cache_to_db('subscriptions', fetch_all_subscriptions_fresh)
-        logger.info(f"Background refresh: Updated {len(fetch_all_subscriptions_fresh)} subscriptions")
+        save_cache_to_db('subscriptions', fresh_subscriptions)
+        logger.info(f"Background refresh: Updated {len(fresh_subscriptions)} subscriptions in {subs_time:.1f}s")
 
-        # Refresh metrics (which also refreshes orders)
-        fresh_metrics = calculate_metrics()
+        # 2. Fetch fresh orders for MTD and prior month
+        now = datetime.now()
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        prior_month_start = (month_start - relativedelta(months=1))
+        prior_month_end = month_start - timedelta(seconds=1)
+
+        logger.info("Background refresh: Fetching MTD orders...")
+        mtd_orders = fetch_orders_for_period(month_start, now)
+        mtd_key = f"{month_start.strftime('%Y-%m-%d')}_{now.strftime('%Y-%m-%d')}"
+        with cache_lock:
+            cache['orders'][mtd_key] = {
+                'data': mtd_orders,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('mtd_orders', mtd_orders)
+        logger.info(f"Background refresh: Updated {len(mtd_orders)} MTD orders")
+
+        logger.info("Background refresh: Fetching prior month orders...")
+        prior_orders = fetch_orders_for_period(prior_month_start, prior_month_end)
+        prior_key = f"{prior_month_start.strftime('%Y-%m-%d')}_{prior_month_end.strftime('%Y-%m-%d')}"
+        with cache_lock:
+            cache['orders'][prior_key] = {
+                'data': prior_orders,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('prior_month_orders', prior_orders)
+        logger.info(f"Background refresh: Updated {len(prior_orders)} prior month orders")
+
+        # 3. Calculate and cache metrics
+        logger.info("Background refresh: Calculating metrics...")
+        status_counts = {
+            'active': 0,
+            'on-hold': 0,
+            'pending': 0,
+            'pending-cancel': 0,
+            'cancelled': 0,
+            'expired': 0
+        }
+
+        for sub in fresh_subscriptions:
+            status = sub.get('status', '').lower()
+            if status in status_counts:
+                status_counts[status] += 1
+
+        mtd_revenue = sum(float(order.get('total', 0)) for order in mtd_orders)
+        prior_revenue = sum(float(order.get('total', 0)) for order in prior_orders)
+
+        fresh_metrics = {
+            'active': status_counts['active'],
+            'on-hold': status_counts['on-hold'],
+            'pending': status_counts['pending'],
+            'pending-cancel': status_counts['pending-cancel'],
+            'monthly_revenue': f"£{mtd_revenue:,.2f}",
+            'prior_month_revenue': f"£{prior_revenue:,.2f}",
+            'last_api_connection': last_api_sync.strftime('%Y-%m-%d %H:%M:%S') if last_api_sync else None
+        }
+
         with cache_lock:
             cache['metrics'] = {
                 'data': fresh_metrics,
                 'timestamp': datetime.now()
             }
         save_cache_to_db('metrics', fresh_metrics)
-        logger.info("Background refresh: Updated metrics")
 
-        logger.info("Background cache refresh complete")
+        total_time = time.time() - start_time
+        logger.info(f"=== Background cache refresh COMPLETE in {total_time:.1f}s ===")
+        logger.info(f"    Subscriptions: {len(fresh_subscriptions)}, MTD Orders: {len(mtd_orders)}, Prior Orders: {len(prior_orders)}")
+
     except Exception as e:
-        logger.error(f"Background refresh failed: {e}")
+        logger.error(f"Background refresh FAILED: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
     finally:
         _refresh_in_progress = False
 
@@ -979,21 +1094,70 @@ def api_get_contacted_status(subscription_id):
         }), 500
 
 
+# ============ APScheduler Setup ============
+
+def init_scheduler():
+    """Initialize and start the APScheduler for background refresh.
+
+    This sets up:
+    1. Hourly background refresh job
+    2. Initial refresh on startup (after a short delay to let the app start)
+    """
+    global _scheduler_started
+
+    if _scheduler_started:
+        logger.info("Scheduler already started, skipping")
+        return
+
+    try:
+        # Add hourly refresh job
+        scheduler.add_job(
+            func=background_refresh,
+            trigger=IntervalTrigger(hours=1),
+            id='hourly_refresh',
+            name='Hourly cache refresh from WooCommerce',
+            replace_existing=True,
+            max_instances=1,  # Prevent overlapping executions
+            coalesce=True     # Combine missed runs into one
+        )
+
+        # Add initial startup refresh (runs once after 10 seconds)
+        # This gives gunicorn time to fully start before hitting the API
+        scheduler.add_job(
+            func=background_refresh,
+            trigger='date',
+            run_date=datetime.now() + timedelta(seconds=10),
+            id='startup_refresh',
+            name='Initial cache refresh on startup',
+            replace_existing=True,
+            max_instances=1
+        )
+
+        # Start the scheduler
+        scheduler.start()
+        _scheduler_started = True
+        logger.info("APScheduler started - hourly refresh scheduled, initial refresh in 10s")
+
+        # Register shutdown handler
+        atexit.register(lambda: scheduler.shutdown(wait=False))
+
+    except Exception as e:
+        logger.error(f"Failed to start scheduler: {e}")
+
+
+# Start scheduler when module is loaded (for gunicorn)
+# Only start if not in debug/reloader mode to avoid duplicate schedulers
+if os.environ.get('WERKZEUG_RUN_MAIN') != 'true':
+    init_scheduler()
+
+
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
     debug = os.getenv('FLASK_DEBUG', 'false').lower() == 'true'
 
-    # Pre-warm cache for local development
-    def prewarm_local():
-        logger.info("Pre-warming cache for local development...")
-        try:
-            get_cached_subscriptions()
-            logger.info("Local cache pre-warm complete")
-        except Exception as e:
-            logger.error(f"Local cache pre-warm failed: {e}")
-
-    prewarm_thread = threading.Thread(target=prewarm_local, daemon=True)
-    prewarm_thread.start()
+    # For local development, start scheduler if not already started
+    if not _scheduler_started:
+        init_scheduler()
 
     logger.info(f"Starting SOMF Dashboard on port {port}")
     app.run(host='0.0.0.0', port=port, debug=debug)
