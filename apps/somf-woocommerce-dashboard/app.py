@@ -1,7 +1,7 @@
 """
 SOMF WooCommerce Dashboard - Backend API
 Connects to WooCommerce REST API to fetch subscription and revenue data
-Version: 1.3 - Instant cold-start with SQLite preload on startup
+Version: 1.4 - Full instant loading (all data preloaded from SQLite)
 """
 
 from flask import Flask, jsonify, request, render_template
@@ -177,14 +177,15 @@ def load_cache_from_db(cache_key):
 
 
 def preload_cache_from_db():
-    """Preload all cached data from SQLite into memory on startup.
+    """Preload ALL cached data from SQLite into memory on startup.
 
     This runs BEFORE the scheduler starts, so the first request
     gets instant response from memory instead of waiting for SQLite.
+    Loads: subscriptions, metrics, orders (MTD & prior month), historical data.
     """
     global _loaded_from_db, last_api_sync
 
-    logger.info("PRELOAD: Loading cached data from SQLite into memory...")
+    logger.info("PRELOAD: Loading ALL cached data from SQLite into memory...")
     loaded_any = False
 
     try:
@@ -210,10 +211,61 @@ def preload_cache_from_db():
             logger.info(f"PRELOAD: Loaded metrics from SQLite")
             loaded_any = True
 
+        # Load MTD orders
+        mtd_orders, _ = load_cache_from_db('mtd_orders')
+        if mtd_orders:
+            now = datetime.now()
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            cache_key = f"{month_start.strftime('%Y-%m-%d')}_{now.strftime('%Y-%m-%d')}"
+            with cache_lock:
+                cache['orders'][cache_key] = {
+                    'data': mtd_orders,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded {len(mtd_orders)} MTD orders from SQLite")
+            loaded_any = True
+
+        # Load prior month orders
+        prior_orders, _ = load_cache_from_db('prior_month_orders')
+        if prior_orders:
+            now = datetime.now()
+            month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            prior_month_start = (month_start - relativedelta(months=1))
+            prior_month_end = month_start - timedelta(days=1)
+            cache_key = f"{prior_month_start.strftime('%Y-%m-%d')}_{prior_month_end.strftime('%Y-%m-%d')}"
+            with cache_lock:
+                cache['orders'][cache_key] = {
+                    'data': prior_orders,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded {len(prior_orders)} prior month orders from SQLite")
+            loaded_any = True
+
+        # Load historical data (30 days - default dashboard view)
+        hist_members, _ = load_cache_from_db('historical_members_30')
+        if hist_members:
+            with cache_lock:
+                cache['historical_members']['30'] = {
+                    'data': hist_members,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded historical members (30 days) from SQLite")
+            loaded_any = True
+
+        hist_revenue, _ = load_cache_from_db('historical_revenue_30')
+        if hist_revenue:
+            with cache_lock:
+                cache['historical_revenue']['30'] = {
+                    'data': hist_revenue,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded historical revenue (30 days) from SQLite")
+            loaded_any = True
+
         if loaded_any:
             _loaded_from_db = True
             last_api_sync = datetime.now()
-            logger.info("PRELOAD: Cache preloaded successfully - ready for instant responses!")
+            logger.info("PRELOAD: All cache preloaded successfully - ready for instant responses!")
         else:
             logger.info("PRELOAD: No cached data in SQLite - will fetch fresh on first request")
 
@@ -704,55 +756,81 @@ def calculate_historical_revenue(days):
 
 
 def get_cached_historical_members(days):
-    """Get historical members from cache or fetch fresh"""
+    """Get historical members from cache - instant response from memory/SQLite"""
     cache_key = str(days)
+    db_key = f'historical_members_{days}'
+
+    # Check memory cache first
     with cache_lock:
         cached = cache['historical_members'].get(cache_key, {'data': None, 'timestamp': None})
-        now = datetime.now()
-
         if cached['data'] and cached['timestamp']:
-            age = (now - cached['timestamp']).total_seconds()
-            if age < CACHE_DURATION:
-                return cached['data'], 'cache'
+            logger.info(f"Using memory cached historical members ({days} days)")
+            return cached['data'], 'cache'
 
-        try:
-            data = calculate_historical_members(days)
+    # Try SQLite
+    db_data, _ = load_cache_from_db(db_key)
+    if db_data:
+        logger.info(f"Using SQLite cached historical members ({days} days)")
+        with cache_lock:
+            cache['historical_members'][cache_key] = {
+                'data': db_data,
+                'timestamp': datetime.now()
+            }
+        return db_data, 'cache'
+
+    # Calculate from cached subscriptions (fast, no API call)
+    try:
+        data = calculate_historical_members(days)
+        with cache_lock:
             cache['historical_members'][cache_key] = {
                 'data': data,
-                'timestamp': now
+                'timestamp': datetime.now()
             }
-            return data, 'api'
-        except Exception as e:
-            logger.error(f"Error calculating historical members: {e}")
-            if cached['data']:
-                return cached['data'], 'stale_cache'
-            raise
+        # Save to SQLite for persistence
+        save_cache_to_db(db_key, data)
+        return data, 'calculated'
+    except Exception as e:
+        logger.error(f"Error calculating historical members: {e}")
+        raise
 
 
 def get_cached_historical_revenue(days):
-    """Get historical revenue from cache or fetch fresh"""
+    """Get historical revenue from cache - instant response from memory/SQLite"""
     cache_key = str(days)
+    db_key = f'historical_revenue_{days}'
+
+    # Check memory cache first
     with cache_lock:
         cached = cache['historical_revenue'].get(cache_key, {'data': None, 'timestamp': None})
-        now = datetime.now()
-
         if cached['data'] and cached['timestamp']:
-            age = (now - cached['timestamp']).total_seconds()
-            if age < CACHE_DURATION:
-                return cached['data'], 'cache'
+            logger.info(f"Using memory cached historical revenue ({days} days)")
+            return cached['data'], 'cache'
 
-        try:
-            data = calculate_historical_revenue(days)
+    # Try SQLite
+    db_data, _ = load_cache_from_db(db_key)
+    if db_data:
+        logger.info(f"Using SQLite cached historical revenue ({days} days)")
+        with cache_lock:
+            cache['historical_revenue'][cache_key] = {
+                'data': db_data,
+                'timestamp': datetime.now()
+            }
+        return db_data, 'cache'
+
+    # Calculate from cached orders (fast if orders are cached)
+    try:
+        data = calculate_historical_revenue(days)
+        with cache_lock:
             cache['historical_revenue'][cache_key] = {
                 'data': data,
-                'timestamp': now
+                'timestamp': datetime.now()
             }
-            return data, 'api'
-        except Exception as e:
-            logger.error(f"Error calculating historical revenue: {e}")
-            if cached['data']:
-                return cached['data'], 'stale_cache'
-            raise
+        # Save to SQLite for persistence
+        save_cache_to_db(db_key, data)
+        return data, 'calculated'
+    except Exception as e:
+        logger.error(f"Error calculating historical revenue: {e}")
+        raise
 
 
 # ============ API Routes ============
@@ -957,6 +1035,25 @@ def background_refresh():
                 'timestamp': datetime.now()
             }
         save_cache_to_db('metrics', fresh_metrics)
+
+        # 4. Calculate and cache historical data (30 days - default view)
+        logger.info("Background refresh: Calculating historical data...")
+        hist_members = calculate_historical_members(30)
+        with cache_lock:
+            cache['historical_members']['30'] = {
+                'data': hist_members,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('historical_members_30', hist_members)
+
+        hist_revenue = calculate_historical_revenue(30)
+        with cache_lock:
+            cache['historical_revenue']['30'] = {
+                'data': hist_revenue,
+                'timestamp': datetime.now()
+            }
+        save_cache_to_db('historical_revenue_30', hist_revenue)
+        logger.info("Background refresh: Historical data updated")
 
         total_time = time.time() - start_time
         logger.info(f"=== Background cache refresh COMPLETE in {total_time:.1f}s ===")
