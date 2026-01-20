@@ -1,7 +1,7 @@
 """
 SOMF WooCommerce Dashboard - Backend API
 Connects to WooCommerce REST API to fetch subscription and revenue data
-Version: 1.2 - Instant loading with APScheduler background refresh
+Version: 1.3 - Instant cold-start with SQLite preload on startup
 """
 
 from flask import Flask, jsonify, request, render_template
@@ -176,6 +176,51 @@ def load_cache_from_db(cache_key):
         return None, None
 
 
+def preload_cache_from_db():
+    """Preload all cached data from SQLite into memory on startup.
+
+    This runs BEFORE the scheduler starts, so the first request
+    gets instant response from memory instead of waiting for SQLite.
+    """
+    global _loaded_from_db, last_api_sync
+
+    logger.info("PRELOAD: Loading cached data from SQLite into memory...")
+    loaded_any = False
+
+    try:
+        # Load subscriptions
+        subs_data, subs_time = load_cache_from_db('subscriptions')
+        if subs_data:
+            with cache_lock:
+                cache['subscriptions'] = {
+                    'data': subs_data,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded {len(subs_data)} subscriptions from SQLite")
+            loaded_any = True
+
+        # Load metrics
+        metrics_data, metrics_time = load_cache_from_db('metrics')
+        if metrics_data:
+            with cache_lock:
+                cache['metrics'] = {
+                    'data': metrics_data,
+                    'timestamp': datetime.now()
+                }
+            logger.info(f"PRELOAD: Loaded metrics from SQLite")
+            loaded_any = True
+
+        if loaded_any:
+            _loaded_from_db = True
+            last_api_sync = datetime.now()
+            logger.info("PRELOAD: Cache preloaded successfully - ready for instant responses!")
+        else:
+            logger.info("PRELOAD: No cached data in SQLite - will fetch fresh on first request")
+
+    except Exception as e:
+        logger.error(f"PRELOAD: Failed to preload cache: {e}")
+
+
 # Initialize database on startup
 try:
     init_db()
@@ -184,6 +229,12 @@ except Exception as e:
 
 # Flag to track if we've loaded from DB
 _loaded_from_db = False
+
+# Preload cache from SQLite into memory for instant responses
+try:
+    preload_cache_from_db()
+except Exception as e:
+    logger.error(f"Failed to preload cache: {e}")
 
 
 # Background refresh flag
@@ -1121,22 +1172,26 @@ def init_scheduler():
             coalesce=True     # Combine missed runs into one
         )
 
-        # Add initial startup refresh (runs once after 10 seconds)
-        # This gives gunicorn time to fully start before hitting the API
-        scheduler.add_job(
-            func=background_refresh,
-            trigger='date',
-            run_date=datetime.now() + timedelta(seconds=10),
-            id='startup_refresh',
-            name='Initial cache refresh on startup',
-            replace_existing=True,
-            max_instances=1
-        )
+        # Add initial startup refresh only if no cached data was preloaded
+        # If cache was preloaded from SQLite, skip the immediate refresh
+        if not _loaded_from_db:
+            scheduler.add_job(
+                func=background_refresh,
+                trigger='date',
+                run_date=datetime.now() + timedelta(seconds=10),
+                id='startup_refresh',
+                name='Initial cache refresh on startup',
+                replace_existing=True,
+                max_instances=1
+            )
+            logger.info("No preloaded cache - scheduling startup refresh in 10s")
+        else:
+            logger.info("Cache preloaded from SQLite - skipping startup refresh")
 
         # Start the scheduler
         scheduler.start()
         _scheduler_started = True
-        logger.info("APScheduler started - hourly refresh scheduled, initial refresh in 10s")
+        logger.info("APScheduler started - hourly refresh scheduled")
 
         # Register shutdown handler
         atexit.register(lambda: scheduler.shutdown(wait=False))
