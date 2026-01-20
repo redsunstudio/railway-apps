@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SOMF KPI Widget</title>
+    <title>SOMF KPI's Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         * {
@@ -29,7 +29,7 @@
         /* Header with Logo */
         .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .logo {
@@ -42,6 +42,58 @@
             font-size: 1.4rem;
             font-weight: 600;
             color: #333;
+        }
+
+        /* Tab Navigation */
+        .tab-nav {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            background: #fafafa;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #eee;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 12px;
+            background: #fafafa;
+            border: none;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab-btn:hover {
+            background: #f0f0f0;
+        }
+
+        .tab-btn.active {
+            color: #333;
+            border-bottom-color: #D4AF37;
+            background: white;
+        }
+
+        .tab-btn .badge {
+            display: inline-block;
+            background: #dc3545;
+            color: white;
+            font-size: 0.65rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+            margin-left: 4px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
         }
 
         /* KPI Cards */
@@ -133,6 +185,143 @@
             position: relative;
             height: 150px;
             width: 100%;
+        }
+
+        /* Members Table */
+        .members-section {
+            background: #fafafa;
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            border: 1px solid #eee;
+        }
+
+        .members-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+            background: #f5f5f5;
+        }
+
+        .members-header h2 {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #333;
+        }
+
+        .members-count {
+            font-size: 0.75rem;
+            color: #666;
+        }
+
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 10px 15px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+
+        .filter-bar label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.75rem;
+            color: #555;
+            cursor: pointer;
+        }
+
+        .filter-bar input[type="checkbox"] {
+            accent-color: #D4AF37;
+        }
+
+        .members-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .members-table th {
+            text-align: left;
+            padding: 10px 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #eee;
+        }
+
+        .members-table td {
+            padding: 10px 12px;
+            font-size: 0.8rem;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+
+        .members-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .members-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .members-table tr.contacted {
+            background: #f0f9f0;
+            opacity: 0.7;
+        }
+
+        .members-table tr.contacted td {
+            text-decoration: line-through;
+            color: #888;
+        }
+
+        .members-table tr.contacted .checkbox-cell {
+            text-decoration: none;
+        }
+
+        .member-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .member-email a {
+            color: #2563eb;
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .member-email a:hover {
+            text-decoration: underline;
+        }
+
+        .member-phone a {
+            color: #333;
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+
+        .contact-checkbox {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+            accent-color: #2e7d32;
+        }
+
+        .no-members {
+            padding: 30px 15px;
+            text-align: center;
+            color: #666;
+            font-size: 0.85rem;
         }
 
         /* Refresh Button */
@@ -239,6 +428,12 @@
             text-align: center;
             font-size: 0.8rem;
         }
+
+        /* Scrollable table container */
+        .table-scroll {
+            max-height: 400px;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body>
@@ -273,112 +468,196 @@
             <h1>SOMF KPI's</h1>
         </div>
 
+        <!-- Tab Navigation -->
+        <div class="tab-nav">
+            <button class="tab-btn active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                Dashboard
+            </button>
+            <button class="tab-btn" data-tab="pending" onclick="switchTab('pending')">
+                Pending Cancellations
+                <span class="badge" id="pendingBadge">0</span>
+            </button>
+            <button class="tab-btn" data-tab="payments" onclick="switchTab('payments')">
+                Pending Payments
+                <span class="badge" id="paymentsBadge">0</span>
+            </button>
+        </div>
+
         <div id="errorMessage" class="error-message hidden"></div>
 
-        <!-- KPI Cards -->
-        <div class="kpi-grid">
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Month To Date
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content active">
+            <!-- KPI Cards -->
+            <div class="kpi-grid">
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Month To Date
+                    </div>
+                    <div class="kpi-value currency" id="monthlyRevenue">-</div>
                 </div>
-                <div class="kpi-value currency" id="monthlyRevenue">-</div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        Revenue Prior Month
+                    </div>
+                    <div class="kpi-value currency" id="priorMonthRevenue">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+                        </svg>
+                        Active Members
+                    </div>
+                    <div class="kpi-value" id="activeMembers">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Pending Cancellation
+                    </div>
+                    <div class="kpi-value" id="pendingCancellation">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Pending Payment
+                    </div>
+                    <div class="kpi-value" id="pendingPayment">-</div>
+                </div>
+
+                <div class="kpi-row">
+                    <div class="kpi-label">
+                        <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        On Hold
+                    </div>
+                    <div class="kpi-value" id="onHold">-</div>
+                </div>
             </div>
 
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    Revenue Prior Month
+            <!-- Active Members Trend Chart -->
+            <div class="chart-section">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                        </svg>
+                        Active Members Trend
+                    </div>
+                    <select class="period-select" id="membersPeriod" onchange="updateMembersChart()">
+                        <option value="7">Last 7 days</option>
+                        <option value="14">Last 14 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
                 </div>
-                <div class="kpi-value currency" id="priorMonthRevenue">-</div>
+                <div class="chart-container">
+                    <canvas id="membersChart"></canvas>
+                </div>
             </div>
 
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
-                    </svg>
-                    Active Members
+            <!-- Prior Month Revenue Trend Chart -->
+            <div class="chart-section">
+                <div class="chart-header">
+                    <div class="chart-title">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                        </svg>
+                        Prior Month Revenue Trend
+                    </div>
+                    <select class="period-select" id="revenuePeriod" onchange="updateRevenueChart()">
+                        <option value="7">Last 7 days</option>
+                        <option value="14">Last 14 days</option>
+                        <option value="30" selected>Last 30 days</option>
+                        <option value="60">Last 60 days</option>
+                        <option value="90">Last 90 days</option>
+                    </select>
                 </div>
-                <div class="kpi-value" id="activeMembers">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Pending Cancellation
+                <div class="chart-container">
+                    <canvas id="revenueChart"></canvas>
                 </div>
-                <div class="kpi-value" id="pendingCancellation">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Pending Payment
-                </div>
-                <div class="kpi-value" id="pendingPayment">-</div>
-            </div>
-
-            <div class="kpi-row">
-                <div class="kpi-label">
-                    <svg class="kpi-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    On Hold
-                </div>
-                <div class="kpi-value" id="onHold">-</div>
             </div>
         </div>
 
-        <!-- Active Members Trend Chart -->
-        <div class="chart-section">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
-                    </svg>
-                    Active Members Trend
+        <!-- Pending Cancellations Tab -->
+        <div id="pendingTab" class="tab-content">
+            <div class="members-section">
+                <div class="members-header">
+                    <h2>Members Pending Cancellation</h2>
+                    <span class="members-count" id="membersCount">Loading...</span>
                 </div>
-                <select class="period-select" id="membersPeriod" onchange="updateMembersChart()">
-                    <option value="7">Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30" selected>Last 30 days</option>
-                    <option value="60">Last 60 days</option>
-                    <option value="90">Last 90 days</option>
-                </select>
-            </div>
-            <div class="chart-container">
-                <canvas id="membersChart"></canvas>
+                <div class="filter-bar">
+                    <label>
+                        <input type="checkbox" id="hideContacted" onchange="filterMembers()">
+                        Hide contacted members
+                    </label>
+                </div>
+                <div class="table-scroll">
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell">Done</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="membersTableBody">
+                            <tr>
+                                <td colspan="4" class="no-members">Loading members...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
-        <!-- Prior Month Revenue Trend Chart -->
-        <div class="chart-section">
-            <div class="chart-header">
-                <div class="chart-title">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Prior Month Revenue Trend
+        <!-- Pending Payments Tab -->
+        <div id="paymentsTab" class="tab-content">
+            <div class="members-section">
+                <div class="members-header">
+                    <h2>Members with Pending Payments</h2>
+                    <span class="members-count" id="paymentsCount">Loading...</span>
                 </div>
-                <select class="period-select" id="revenuePeriod" onchange="updateRevenueChart()">
-                    <option value="7">Last 7 days</option>
-                    <option value="14">Last 14 days</option>
-                    <option value="30" selected>Last 30 days</option>
-                    <option value="60">Last 60 days</option>
-                    <option value="90">Last 90 days</option>
-                </select>
-            </div>
-            <div class="chart-container">
-                <canvas id="revenueChart"></canvas>
+                <div class="filter-bar">
+                    <label>
+                        <input type="checkbox" id="hideContactedPayments" onchange="filterPaymentMembers()">
+                        Hide contacted members
+                    </label>
+                </div>
+                <div class="table-scroll">
+                    <table class="members-table">
+                        <thead>
+                            <tr>
+                                <th class="checkbox-cell">Done</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentsTableBody">
+                            <tr>
+                                <td colspan="4" class="no-members">Loading members...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -416,6 +695,8 @@
         let lastUpdated = null;
         let lastApiSync = null;
         let dataSource = 'loading';
+        let pendingMembers = [];
+        let pendingPaymentMembers = [];
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -423,6 +704,31 @@
             loadAllData();
             setInterval(loadAllData, 5 * 60 * 1000);
         });
+
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.tab === tabName) {
+                    btn.classList.add('active');
+                }
+            });
+
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+
+            if (tabName === 'dashboard') {
+                document.getElementById('dashboardTab').classList.add('active');
+            } else if (tabName === 'pending') {
+                document.getElementById('pendingTab').classList.add('active');
+                loadPendingCancellations();
+            } else if (tabName === 'payments') {
+                document.getElementById('paymentsTab').classList.add('active');
+                loadPendingPayments();
+            }
+        }
 
         function initCharts() {
             const membersCtx = document.getElementById('membersChart').getContext('2d');
@@ -486,7 +792,13 @@
 
         async function loadAllData() {
             try {
-                await Promise.all([loadMetrics(), updateMembersChart(), updateRevenueChart()]);
+                await Promise.all([
+                    loadMetrics(),
+                    updateMembersChart(),
+                    updateRevenueChart(),
+                    loadPendingCancellations(),
+                    loadPendingPayments()
+                ]);
             } catch (error) {
                 showError('Failed to load data');
             } finally {
@@ -511,6 +823,229 @@
                 updateStatusBar();
                 hideError();
             }
+        }
+
+        async function loadPendingCancellations() {
+            try {
+                const response = await fetch(API_BASE + '/api/pending-cancellations');
+                const result = await response.json();
+                if (result.success) {
+                    pendingMembers = result.data;
+                    updatePendingBadge();
+                    renderMembersTable();
+                }
+            } catch (error) {
+                console.error('Error loading pending cancellations:', error);
+            }
+        }
+
+        function updatePendingBadge() {
+            const badge = document.getElementById('pendingBadge');
+            const notContacted = pendingMembers.filter(m => !m.contacted).length;
+            badge.textContent = notContacted;
+            badge.style.display = notContacted > 0 ? 'inline-block' : 'none';
+        }
+
+        function renderMembersTable() {
+            const tbody = document.getElementById('membersTableBody');
+            const countEl = document.getElementById('membersCount');
+            const hideContacted = document.getElementById('hideContacted').checked;
+
+            let filteredMembers = pendingMembers;
+            if (hideContacted) {
+                filteredMembers = pendingMembers.filter(m => !m.contacted);
+            }
+
+            const notContactedCount = pendingMembers.filter(m => !m.contacted).length;
+            countEl.textContent = `${notContactedCount} not contacted / ${pendingMembers.length} total`;
+
+            if (filteredMembers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-members">No members pending cancellation</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredMembers.map(member => `
+                <tr class="${member.contacted ? 'contacted' : ''}" data-id="${member.subscription_id}">
+                    <td class="checkbox-cell">
+                        <input type="checkbox"
+                               class="contact-checkbox"
+                               ${member.contacted ? 'checked' : ''}
+                               onchange="toggleContacted(${member.subscription_id}, this.checked)"
+                               title="Mark as contacted">
+                    </td>
+                    <td>
+                        <div class="member-name">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</div>
+                    </td>
+                    <td class="member-email">
+                        <a href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a>
+                    </td>
+                    <td class="member-phone">
+                        ${member.phone ? `<a href="tel:${escapeHtml(member.phone)}">${escapeHtml(member.phone)}</a>` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterMembers() {
+            renderMembersTable();
+        }
+
+        async function loadPendingPayments() {
+            try {
+                const response = await fetch(API_BASE + '/api/pending-payments');
+                const result = await response.json();
+                if (result.success) {
+                    pendingPaymentMembers = result.data;
+                    updatePaymentsBadge();
+                    renderPaymentsTable();
+                }
+            } catch (error) {
+                console.error('Error loading pending payments:', error);
+            }
+        }
+
+        function updatePaymentsBadge() {
+            const badge = document.getElementById('paymentsBadge');
+            const notContacted = pendingPaymentMembers.filter(m => !m.contacted).length;
+            badge.textContent = notContacted;
+            badge.style.display = notContacted > 0 ? 'inline-block' : 'none';
+        }
+
+        function renderPaymentsTable() {
+            const tbody = document.getElementById('paymentsTableBody');
+            const countEl = document.getElementById('paymentsCount');
+            const hideContacted = document.getElementById('hideContactedPayments').checked;
+
+            let filteredMembers = pendingPaymentMembers;
+            if (hideContacted) {
+                filteredMembers = pendingPaymentMembers.filter(m => !m.contacted);
+            }
+
+            const notContactedCount = pendingPaymentMembers.filter(m => !m.contacted).length;
+            countEl.textContent = `${notContactedCount} not contacted / ${pendingPaymentMembers.length} total`;
+
+            if (filteredMembers.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="no-members">No members with pending payments</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = filteredMembers.map(member => `
+                <tr class="${member.contacted ? 'contacted' : ''}" data-id="${member.subscription_id}" data-type="payment">
+                    <td class="checkbox-cell">
+                        <input type="checkbox"
+                               class="contact-checkbox"
+                               ${member.contacted ? 'checked' : ''}
+                               onchange="toggleContactedPayment(${member.subscription_id}, this.checked)"
+                               title="Mark as contacted">
+                    </td>
+                    <td>
+                        <div class="member-name">${escapeHtml(member.first_name)} ${escapeHtml(member.last_name)}</div>
+                    </td>
+                    <td class="member-email">
+                        <a href="mailto:${escapeHtml(member.email)}">${escapeHtml(member.email)}</a>
+                    </td>
+                    <td class="member-phone">
+                        ${member.phone ? `<a href="tel:${escapeHtml(member.phone)}">${escapeHtml(member.phone)}</a>` : '-'}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function filterPaymentMembers() {
+            renderPaymentsTable();
+        }
+
+        async function toggleContacted(subscriptionId, contacted) {
+            try {
+                const response = await fetch(API_BASE + '/api/member/contacted', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        contacted: contacted
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const member = pendingMembers.find(m => m.subscription_id === subscriptionId);
+                    if (member) {
+                        member.contacted = contacted;
+                    }
+
+                    const row = document.querySelector(`tr[data-id="${subscriptionId}"]:not([data-type])`);
+                    if (row) {
+                        if (contacted) {
+                            row.classList.add('contacted');
+                        } else {
+                            row.classList.remove('contacted');
+                        }
+                    }
+
+                    updatePendingBadge();
+
+                    if (document.getElementById('hideContacted').checked && contacted) {
+                        renderMembersTable();
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating contacted status:', error);
+                const checkbox = document.querySelector(`tr[data-id="${subscriptionId}"]:not([data-type]) .contact-checkbox`);
+                if (checkbox) {
+                    checkbox.checked = !contacted;
+                }
+            }
+        }
+
+        async function toggleContactedPayment(subscriptionId, contacted) {
+            try {
+                const response = await fetch(API_BASE + '/api/member/contacted', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        subscription_id: subscriptionId,
+                        contacted: contacted
+                    })
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    const member = pendingPaymentMembers.find(m => m.subscription_id === subscriptionId);
+                    if (member) {
+                        member.contacted = contacted;
+                    }
+
+                    const row = document.querySelector(`tr[data-id="${subscriptionId}"][data-type="payment"]`);
+                    if (row) {
+                        if (contacted) {
+                            row.classList.add('contacted');
+                        } else {
+                            row.classList.remove('contacted');
+                        }
+                    }
+
+                    updatePaymentsBadge();
+
+                    if (document.getElementById('hideContactedPayments').checked && contacted) {
+                        renderPaymentsTable();
+                    }
+                }
+            } catch (error) {
+                console.error('Error updating contacted status:', error);
+                const checkbox = document.querySelector(`tr[data-id="${subscriptionId}"][data-type="payment"] .contact-checkbox`);
+                if (checkbox) {
+                    checkbox.checked = !contacted;
+                }
+            }
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         async function updateMembersChart() {
@@ -555,8 +1090,8 @@
 
         function updateStatusBar() {
             let status = `Last updated: ${lastUpdated || 'Unknown'}`;
-            if (lastApiSync) status += ` • Last API sync: ${lastApiSync}`;
-            status += ` • Source: ${dataSource}`;
+            if (lastApiSync) status += ` · Last API sync: ${lastApiSync}`;
+            status += ` · Source: ${dataSource}`;
             document.getElementById('statusBar').textContent = status;
         }
 
