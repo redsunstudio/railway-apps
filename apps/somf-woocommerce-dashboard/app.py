@@ -1,7 +1,7 @@
 """
 SOMF WooCommerce Dashboard - Backend API
 Connects to WooCommerce REST API to fetch subscription and revenue data
-Version: 1.4 - Full instant loading (all data preloaded from SQLite)
+Version: 1.5 - Fix historical trend to show only active members
 """
 
 from flask import Flask, jsonify, request, render_template
@@ -668,7 +668,7 @@ def calculate_historical_members(days):
                 if start_dt.date() <= current_date.date():
                     # If no end date or end date is after current date
                     if not sub_end or sub_end == '':
-                        if sub.get('status') in ['active', 'on-hold', 'pending-cancel']:
+                        if sub.get('status') == 'active':
                             active_count += 1
                     else:
                         try:
@@ -677,7 +677,7 @@ def calculate_historical_members(days):
                             if end_dt.date() >= current_date.date():
                                 active_count += 1
                         except:
-                            if sub.get('status') in ['active', 'on-hold', 'pending-cancel']:
+                            if sub.get('status') == 'active':
                                 active_count += 1
             except Exception as e:
                 continue
