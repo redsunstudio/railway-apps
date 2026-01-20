@@ -7,6 +7,7 @@ import re
 import logging
 import requests
 from datetime import datetime, timezone
+from urllib.parse import quote
 import os
 import time
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 APIFY_TOKEN = os.environ.get('APIFY_TOKEN')
 APIFY_ACTOR = 'apidojo/twitter-list-scraper'
+APIFY_ACTOR_ENCODED = quote(APIFY_ACTOR, safe='')
 
 
 class TwitterListScraper:
@@ -78,8 +80,8 @@ class TwitterListScraper:
             return []
 
         try:
-            # Start the Apify Actor
-            run_url = f"https://api.apify.com/v2/acts/{APIFY_ACTOR}/runs"
+            # Start the Apify Actor (actor name must be URL-encoded)
+            run_url = f"https://api.apify.com/v2/acts/{APIFY_ACTOR_ENCODED}/runs"
 
             # Prepare input based on list type
             actor_input = {
