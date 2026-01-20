@@ -204,8 +204,22 @@ class RSSGenerator:
     def _prettify(self, elem):
         """Return pretty-printed XML string"""
         rough_string = ET.tostring(elem, encoding='unicode')
-        reparsed = minidom.parseString(rough_string)
-        return reparsed.toprettyxml(indent="  ", encoding=None)
+        # Fix duplicate namespace declarations that can occur with ElementTree
+        # Remove auto-generated ns0: prefix and use standard xmlns declarations
+        rough_string = rough_string.replace('ns0:', 'atom:')
+        rough_string = rough_string.replace('xmlns:ns0=', 'xmlns:atom=')
+        rough_string = rough_string.replace('ns1:', 'dc:')
+        rough_string = rough_string.replace('xmlns:ns1=', 'xmlns:dc=')
+        # Remove duplicate xmlns declarations
+        import re
+        rough_string = re.sub(r'xmlns:atom="[^"]*"\s*xmlns:atom="[^"]*"', 'xmlns:atom="http://www.w3.org/2005/Atom"', rough_string)
+        rough_string = re.sub(r'xmlns:dc="[^"]*"\s*xmlns:dc="[^"]*"', 'xmlns:dc="http://purl.org/dc/elements/1.1/"', rough_string)
+        try:
+            reparsed = minidom.parseString(rough_string)
+            return reparsed.toprettyxml(indent="  ", encoding=None)
+        except Exception as e:
+            # If pretty printing fails, return the raw XML
+            return '<?xml version="1.0" encoding="UTF-8"?>\n' + rough_string
 
 
 # Test
